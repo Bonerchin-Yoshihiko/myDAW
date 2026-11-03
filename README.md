@@ -3,6 +3,8 @@
 パターン（小節のブロック）を作って、パズルのように並べて曲を作るデスクトップ DAW です。
 C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux で動きます。
 
+![myDAW の画面](docs/screenshot.png)
+
 ## できること
 
 | 仕様 | 実装 |

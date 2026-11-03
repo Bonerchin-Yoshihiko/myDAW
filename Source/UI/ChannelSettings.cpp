@@ -264,9 +264,9 @@ void ChannelSettings::rebuildEffectRows()
                     session.markDirty();
                 }
             };
-            row->remove.onClick = [this, index]
+            row->remove.onClick = [safe = SafePointer<ChannelSettings> (this), index]
             {
-                MessageManager::callAsync ([safe = SafePointer<ChannelSettings> (this), index]
+                MessageManager::callAsync ([safe, index]
                 {
                     if (safe != nullptr)
                         safe->session.removeEffect (safe->getChannel(), index);

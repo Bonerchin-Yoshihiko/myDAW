@@ -520,9 +520,9 @@ void StepGrid::showChannelMenu (int channelId, Component& target)
             session.patternChanged (p->id);
         }
     });
-    m.addItem ("Delete channel", [this, channelId]
+    m.addItem ("Delete channel", [safe = SafePointer<StepGrid> (this), channelId]
     {
-        MessageManager::callAsync ([safe = SafePointer<StepGrid> (this), channelId]
+        MessageManager::callAsync ([safe, channelId]
         {
             if (safe != nullptr)
                 safe->session.removeChannel (channelId);
