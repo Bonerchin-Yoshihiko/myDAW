@@ -1,0 +1,64 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: macOS
+            os: macos-latest
+          - name: Linux
+            os: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build xvfb libasound2-dev libjack-jackd2-dev \
+            libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxrender-dev
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then GEN="-G Ninja"; else GEN=""; fi
+          cmake -S . -B build $GEN -DCMAKE_BUILD_TYPE=Release -DMYDAW_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Run integration tests
+        shell: bash
+        run: |
+          TESTS=$(find build/MyDAWTests_artefacts -type f \( -name "MyDAWTests" -o -name "MyDAWTests.exe" \) | head -n 1)
+          echo "Running $TESTS"
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a "$TESTS"; else "$TESTS"; fi
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          case "$RUNNER_OS" in
+            Windows) cp build/MyDAW_artefacts/Release/myDAW.exe dist/ ;;
+            macOS)   ditto -c -k --keepParent build/MyDAW_artefacts/Release/myDAW.app dist/myDAW-macOS.zip ;;
+            Linux)   cp build/MyDAW_artefacts/Release/myDAW dist/ ;;
+          esac
+          cp README.md dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myDAW-${{ matrix.name }}
+          path: dist/
