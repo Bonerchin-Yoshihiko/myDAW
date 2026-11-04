@@ -24,6 +24,8 @@ public:
     void process (AudioBuffer<float>& buffer, int numSamples);
 
     int getRequiredChannels() const;
+    int getLatencySamples() const;           // sum of the active plug-ins' latencies
+    void reset();                            // clears delay lines / reverb tails
     void setNonRealtime (bool) noexcept;
     void setPlayHead (AudioPlayHead*);
     bool isEmpty() const noexcept { return slots.empty(); }

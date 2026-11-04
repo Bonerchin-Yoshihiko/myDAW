@@ -45,12 +45,222 @@ void AudioEngine::prepareLocked (double newSampleRate, int newBlockSize)
     masterEffects.setPlayHead (this);
     masterEffects.prepare (sampleRate, blockSize);
     masterEffectsChanged();
+
+    for (auto* chain : auxiliaryChains)
+    {
+        chain->setPlayHead (this);
+        chain->prepare (sampleRate, blockSize);
+    }
+
+    auxiliaryChainChanged();
     prepared = true;
 }
 
 void AudioEngine::masterEffectsChanged()
 {
     masterBuffer.setSize (masterEffects.getRequiredChannels(), blockSize, false, true, true);
+}
+
+//==============================================================================
+void AudioEngine::addAuxiliaryChain (EffectChain* chain)
+{
+    const ScopedLock sl (lock);
+
+    if (std::find (auxiliaryChains.begin(), auxiliaryChains.end(), chain) == auxiliaryChains.end())
+        auxiliaryChains.push_back (chain);
+
+    chain->setPlayHead (this);
+}
+
+void AudioEngine::removeAuxiliaryChain (EffectChain* chain)
+{
+    std::shared_ptr<const SampleData> released;
+
+    {
+        const ScopedLock sl (lock);
+        auxiliaryChains.erase (std::remove (auxiliaryChains.begin(), auxiliaryChains.end(), chain), auxiliaryChains.end());
+
+        if (samplePreview.chain == chain)
+        {
+            samplePreview.active = false;
+            samplePreview.chain = nullptr;
+            std::swap (released, samplePreview.sample);
+            uiPreviewActive.store (false);
+        }
+    }
+}
+
+void AudioEngine::auxiliaryChainChanged()
+{
+    auto numChannels = 2;
+
+    for (auto* chain : auxiliaryChains)
+        numChannels = jmax (numChannels, chain->getRequiredChannels());
+
+    samplePreview.buffer.setSize (numChannels, blockSize, false, true, true);
+}
+
+void AudioEngine::startSamplePreview (std::shared_ptr<const SampleData> sample, Range<int> range, EffectChain* chain, bool loop)
+{
+    if (sample == nullptr || sample->getLength() < 2)
+        return;
+
+    range = Range<int> (0, sample->getLength()).getIntersectionWith (range);
+
+    if (range.getLength() < 2)
+        range = { 0, sample->getLength() };
+
+    {
+        const ScopedLock sl (lock);
+        std::swap (samplePreview.sample, sample);   // the previous one is released outside the lock
+        samplePreview.chain = chain;
+        samplePreview.start = range.getStart();
+        samplePreview.end = range.getEnd();
+        samplePreview.position = range.getStart();
+        samplePreview.loop = loop && range.getLength() > 64;
+        samplePreview.sourceFinished = false;
+        samplePreview.tailRemaining = (int) (sampleRate * 4.0);
+        samplePreview.active = true;
+
+        if (chain != nullptr)
+            chain->reset();
+
+        auxiliaryChainChanged();
+        uiPreviewActive.store (true);
+        uiPreviewPosition.store (samplePreview.position);
+    }
+}
+
+void AudioEngine::stopSamplePreview()
+{
+    std::shared_ptr<const SampleData> released;
+
+    {
+        const ScopedLock sl (lock);
+        samplePreview.active = false;
+        std::swap (released, samplePreview.sample);
+        uiPreviewActive.store (false);
+    }
+}
+
+void AudioEngine::renderSamplePreview (int numSamples)
+{
+    auto& p = samplePreview;
+
+    if (! p.active || p.sample == nullptr)
+        return;
+
+    auto& buf = p.buffer;
+
+    if (buf.getNumSamples() < numSamples)
+        return;
+
+    for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        buf.clear (ch, 0, numSamples);
+
+    const auto& src = p.sample->buffer;
+    const auto* srcL = src.getReadPointer (0);
+    const auto* srcR = src.getReadPointer (src.getNumChannels() > 1 ? 1 : 0);
+    const auto increment = p.sample->sampleRate / sampleRate;
+    auto* outL = buf.getWritePointer (0);
+    auto* outR = buf.getWritePointer (1);
+
+    for (int i = 0; i < numSamples && ! p.sourceFinished; ++i)
+    {
+        if (p.position >= p.end)
+        {
+            if (p.loop)
+            {
+                p.position = p.start + std::fmod (p.position - p.end, (double) (p.end - p.start));
+            }
+            else
+            {
+                p.sourceFinished = true;
+                break;
+            }
+        }
+
+        const auto index = (int) p.position;
+        const auto next = jmin (index + 1, src.getNumSamples() - 1);
+        const auto frac = (float) (p.position - index);
+        outL[i] = srcL[index] + frac * (srcL[next] - srcL[index]);
+        outR[i] = srcR[index] + frac * (srcR[next] - srcR[index]);
+        p.position += increment;
+    }
+
+    if (p.chain != nullptr)
+        p.chain->process (buf, numSamples);
+
+    if (p.sourceFinished)
+    {
+        // let reverbs and delays ring out, then stop
+        p.tailRemaining -= numSamples;
+
+        if (p.chain == nullptr || p.chain->isEmpty() || p.tailRemaining <= 0
+             || jmax (buf.getMagnitude (0, 0, numSamples), buf.getMagnitude (1, 0, numSamples)) < 1.0e-5f)
+            p.active = false;
+    }
+
+    masterBuffer.addFrom (0, 0, buf, 0, 0, numSamples);
+    masterBuffer.addFrom (1, 0, buf, 1, 0, numSamples);
+
+    uiPreviewPosition.store (jmin (p.position, (double) p.end));
+    uiPreviewActive.store (p.active);
+}
+
+Result AudioEngine::renderThroughChain (EffectChain& chain, const AudioBuffer<float>& input, double renderRate,
+                                        int tailSamples, AudioBuffer<float>& output)
+{
+    if (input.getNumSamples() <= 0 || input.getNumChannels() <= 0)
+        return Result::fail ("Nothing to process.");
+
+    const ScopedLock sl (lock); // the live audio callback outputs silence meanwhile
+
+    samplePreview.active = false;
+    uiPreviewActive.store (false);
+
+    chain.setNonRealtime (true);
+    chain.prepare (renderRate, blockSize);
+    chain.reset();
+
+    const auto latency = chain.getLatencySamples();
+    const auto inputLength = input.getNumSamples();
+    const auto outputLength = inputLength + jmax (0, tailSamples);
+    const auto total = outputLength + latency;
+
+    AudioBuffer<float> work (jmax (2, chain.getRequiredChannels()), blockSize);
+    output.setSize (2, outputLength);
+    output.clear();
+
+    for (int pos = 0; pos < total; pos += blockSize)
+    {
+        const auto n = jmin (blockSize, total - pos);
+        work.clear();
+
+        if (pos < inputLength)
+        {
+            const auto count = jmin (n, inputLength - pos);
+
+            for (int ch = 0; ch < 2; ++ch)
+                work.copyFrom (ch, 0, input, jmin (ch, input.getNumChannels() - 1), pos, count);
+        }
+
+        chain.process (work, n);
+
+        // drop the first `latency` samples so the result lines up with the input
+        const auto firstOut = pos - latency;
+        const auto skip = jmax (0, -firstOut);
+        const auto count = jmin (n - skip, outputLength - (firstOut + skip));
+
+        if (count > 0)
+            for (int ch = 0; ch < 2; ++ch)
+                output.copyFrom (ch, firstOut + skip, work, ch, skip, count);
+    }
+
+    chain.setNonRealtime (false);
+    chain.prepare (sampleRate, blockSize);
+    chain.reset();
+    return Result::ok();
 }
 
 void AudioEngine::setChannels (std::vector<std::shared_ptr<Channel>> newChannels)
@@ -245,6 +455,8 @@ void AudioEngine::renderChunk (int numSamples)
 
     masterEffects.process (masterBuffer, numSamples);
 
+    renderSamplePreview (numSamples);   // the sample editor's preview skips the master effects
+
     const auto gain = masterVolume.load();
 
     for (int ch = 0; ch < 2; ++ch)
@@ -372,6 +584,9 @@ Result AudioEngine::renderToFile (const File& file, std::shared_ptr<const Sequen
         return Result::fail ("Could not create the WAV writer.");
 
     const ScopedLock sl (lock); // the live audio callback outputs silence meanwhile
+
+    samplePreview.active = false;
+    uiPreviewActive.store (false);
 
     auto savedSequence = sequence;
     const auto savedPosition = position;

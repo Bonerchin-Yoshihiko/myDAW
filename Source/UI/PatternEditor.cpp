@@ -1,8 +1,8 @@
 #include "UI/PatternEditor.h"
 #include "Audio/Channel.h"
 
-PatternEditor::PatternEditor (Session& s, PluginWindowManager& w)
-    : session (s), pluginWindows (w), grid (s, w), pianoRoll (s)
+PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorManager& e)
+    : session (s), pluginWindows (w), grid (s, w, e), pianoRoll (s)
 {
     title.setText ("PATTERN", dontSendNotification);
     title.setFont (Theme::font (12.0f, true));

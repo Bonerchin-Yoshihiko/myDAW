@@ -24,7 +24,10 @@ public:
 
     // --- sample channels
     File sampleFile;                          // remembered even if loading failed
+    File originalSampleFile;                  // the file first imported ("Revert to original")
     std::shared_ptr<const SampleData> sample;
+    bool sampleModified = false;              // edited in the sample editor, not yet written to disk
+    std::vector<std::shared_ptr<const SampleData>> undoHistory, redoHistory; // message thread only
 
     // --- plug-in channels
     std::unique_ptr<AudioPluginInstance> plugin;

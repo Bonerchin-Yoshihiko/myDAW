@@ -34,6 +34,7 @@ set(MYDAW_CORE_SOURCES
     Source/Session.cpp
     Source/Model/Project.cpp
     Source/Audio/SampleData.cpp
+    Source/Audio/SampleEditing.cpp
     Source/Audio/EffectChain.cpp
     Source/Audio/Channel.cpp
     Source/Audio/AudioEngine.cpp
@@ -45,6 +46,7 @@ set(MYDAW_UI_SOURCES
     Source/UI/TransportBar.cpp
     Source/UI/PatternList.cpp
     Source/UI/ChannelSettings.cpp
+    Source/UI/SampleEditor.cpp
     Source/UI/StepGrid.cpp
     Source/UI/PianoRoll.cpp
     Source/UI/PatternEditor.cpp

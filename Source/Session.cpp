@@ -1,4 +1,5 @@
 #include "Session.h"
+#include "Audio/SampleEditing.h"
 
 namespace
 {
@@ -296,6 +297,9 @@ var Session::channelToVar (const Channel& c, const File& baseDir) const
 
         if (baseDir.isDirectory() && c.sampleFile != File())
             o->setProperty ("relativeFile", c.sampleFile.getRelativePathFrom (baseDir).replaceCharacter ('\\', '/'));
+
+        if (c.originalSampleFile != File() && c.originalSampleFile != c.sampleFile)
+            o->setProperty ("originalFile", c.originalSampleFile.getFullPathName());
     }
     else
     {
@@ -351,6 +355,9 @@ std::shared_ptr<Channel> Session::channelFromVar (const var& v, const File& base
 
         if (c->sample == nullptr)
             warnings.add ("Sample not found for \"" + c->name + "\": " + absolute.getFullPathName());
+
+        const auto original = fileFromString (v.getProperty ("originalFile", "").toString());
+        c->originalSampleFile = original != File() ? original : c->sampleFile;
     }
     else
     {
@@ -374,6 +381,14 @@ std::shared_ptr<Channel> Session::channelFromVar (const var& v, const File& base
 //==============================================================================
 Result Session::saveProject (const File& file)
 {
+    {
+        const auto samplesFolder = file.getParentDirectory().getChildFile (file.getFileNameWithoutExtension() + " Samples");
+        const auto written = writeEditedSamples (samplesFolder);
+
+        if (written.failed())
+            return written;
+    }
+
     auto* o = new DynamicObject();
     var root (o);
     const auto baseDir = file.getParentDirectory();
@@ -534,6 +549,7 @@ std::shared_ptr<Channel> Session::addSampleChannel (const File& file, String& er
     c->name = file.getFileNameWithoutExtension();
     c->colour = Palette::get (nextChannelColourIndex (project));
     c->sampleFile = file;
+    c->originalSampleFile = file;
     c->sample = data;
     engine.prepareNewChannel (*c);
 
@@ -632,9 +648,127 @@ bool Session::replaceSample (Channel& c, const File& file, String& error)
     }
 
     old.reset();
+    c.originalSampleFile = file;
+    c.sampleModified = false;
+    c.undoHistory.clear();
+    c.redoHistory.clear();
     markDirty();
+    notify (channelsChanged | sampleChanged);
+    return true;
+}
+
+//==============================================================================
+void Session::swapSample (Channel& c, std::shared_ptr<const SampleData> data)
+{
+    {
+        const ScopedLock sl (engine.getLock());
+        std::swap (c.sample, data);   // voices stop by themselves if the new sample is shorter
+    }
+
+    data.reset(); // previous version is either in the history or released here, off the audio thread
+}
+
+void Session::commitSampleEdit (Channel& c, std::shared_ptr<const SampleData> newData)
+{
+    if (newData == nullptr || ! c.isSample())
+        return;
+
+    constexpr size_t maxUndoSteps = 30;
+
+    if (c.sample != nullptr)
+        c.undoHistory.push_back (c.sample);
+
+    if (c.undoHistory.size() > maxUndoSteps)
+        c.undoHistory.erase (c.undoHistory.begin());
+
+    c.redoHistory.clear();
+    swapSample (c, std::move (newData));
+    c.sampleModified = true;
+    markDirty();
+    notify (sampleChanged);
+}
+
+bool Session::undoSampleEdit (Channel& c)
+{
+    if (c.undoHistory.empty())
+        return false;
+
+    auto previous = c.undoHistory.back();
+    c.undoHistory.pop_back();
+
+    if (c.sample != nullptr)
+        c.redoHistory.push_back (c.sample);
+
+    swapSample (c, std::move (previous));
+    c.sampleModified = true;
+    markDirty();
+    notify (sampleChanged);
+    return true;
+}
+
+bool Session::redoSampleEdit (Channel& c)
+{
+    if (c.redoHistory.empty())
+        return false;
+
+    auto next = c.redoHistory.back();
+    c.redoHistory.pop_back();
+
+    if (c.sample != nullptr)
+        c.undoHistory.push_back (c.sample);
+
+    swapSample (c, std::move (next));
+    c.sampleModified = true;
+    markDirty();
+    notify (sampleChanged);
+    return true;
+}
+
+bool Session::revertSampleToOriginal (Channel& c, String& error)
+{
+    const auto original = c.originalSampleFile != File() ? c.originalSampleFile : c.sampleFile;
+    auto data = SampleData::load (formats, original, error);
+
+    if (data == nullptr)
+        return false;
+
+    commitSampleEdit (c, data);   // undoable like any other edit
+    c.sampleFile = original;
+    c.sampleModified = false;
     notify (channelsChanged);
     return true;
+}
+
+File Session::getEditedSamplesFolder() const
+{
+    if (projectFile != File())
+        return projectFile.getParentDirectory().getChildFile (projectFile.getFileNameWithoutExtension() + " Samples");
+
+    return File::getSpecialLocation (File::userDocumentsDirectory).getChildFile ("myDAW").getChildFile ("Edited Samples");
+}
+
+Result Session::writeEditedSamples (const File& folder)
+{
+    for (auto& c : project.channels)
+    {
+        if (! c->isSample() || ! c->sampleModified || c->sample == nullptr)
+            continue;
+
+        // re-use the file we wrote last time for this channel, otherwise pick a fresh name
+        auto target = c->sampleFile.isAChildOf (folder) && c->sampleFile != c->originalSampleFile
+                          ? c->sampleFile
+                          : folder.getNonexistentChildFile (File::createLegalFileName (c->name), ".wav", false);
+
+        const auto result = SampleEditing::writeWav (*c->sample, target);
+
+        if (result.failed())
+            return result;
+
+        c->sampleFile = target;
+        c->sampleModified = false;
+    }
+
+    return Result::ok();
 }
 
 bool Session::addEffect (Channel* channel, const PluginDescription& desc, String& error)
@@ -837,6 +971,9 @@ Result Session::exportPattern (int patternId, const File& file)
 
     if (p == nullptr)
         return Result::fail ("No pattern selected.");
+
+    if (const auto written = writeEditedSamples (getEditedSamplesFolder()); written.failed())
+        return written;
 
     auto* o = new DynamicObject();
     var root (o);

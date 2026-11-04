@@ -81,6 +81,26 @@ int EffectChain::getRequiredChannels() const
     return n;
 }
 
+int EffectChain::getLatencySamples() const
+{
+    int latency = 0;
+
+    for (auto& s : slots)
+        if (! s->bypassed.load())
+            latency += jmax (0, s->plugin->getLatencySamples());
+
+    return latency;
+}
+
+void EffectChain::reset()
+{
+    for (auto& s : slots)
+    {
+        const ScopedLock sl (s->plugin->getCallbackLock());
+        s->plugin->reset();
+    }
+}
+
 void EffectChain::setNonRealtime (bool nonRealtime) noexcept
 {
     for (auto& s : slots)

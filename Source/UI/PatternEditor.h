@@ -11,7 +11,7 @@ class PatternEditor : public Component,
                       private Timer
 {
 public:
-    PatternEditor (Session&, PluginWindowManager&);
+    PatternEditor (Session&, PluginWindowManager&, SampleEditorManager&);
     ~PatternEditor() override;
 
     void paint (Graphics&) override;

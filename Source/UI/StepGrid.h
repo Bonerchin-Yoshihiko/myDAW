@@ -2,6 +2,7 @@
 
 #include "Session.h"
 #include "UI/PluginWindows.h"
+#include "UI/SampleEditor.h"
 #include "UI/Theme.h"
 
 /** The "channel rack": one row per channel, one cell per step. Click cells to toggle
@@ -11,10 +12,10 @@ class StepGrid : public Component,
                  private Timer
 {
 public:
-    StepGrid (Session&, PluginWindowManager&);
+    StepGrid (Session&, PluginWindowManager&, SampleEditorManager&);
     ~StepGrid() override;
 
-    static constexpr int headerWidth = 236;
+    static constexpr int headerWidth = 276;
     static constexpr int rowHeight = 34;
 
     std::function<void (int channelId)> onOpenPianoRoll;
@@ -39,9 +40,11 @@ private:
     void applyPaint (int row, int step);
     void showChannelMenu (int channelId, Component& target);
     void renameChannel (int channelId);
+    void editChannel (int channelId);
 
     Session& session;
     PluginWindowManager& pluginWindows;
+    SampleEditorManager& sampleEditors;
     OwnedArray<RowHeader> rows;
     std::vector<int> rowChannelIds;
 

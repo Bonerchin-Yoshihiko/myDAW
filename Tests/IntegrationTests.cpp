@@ -8,6 +8,7 @@
 
 #include "Session.h"
 #include "Audio/Channel.h"
+#include "Audio/SampleEditing.h"
 
 #include <iostream>
 
@@ -286,6 +287,202 @@ namespace
         return nullptr;
     }
 
+    float peakOf (const SampleData& d)
+    {
+        float peak = 0.0f;
+
+        for (int ch = 0; ch < d.buffer.getNumChannels(); ++ch)
+            peak = jmax (peak, d.buffer.getMagnitude (ch, 0, d.getLength()));
+
+        return peak;
+    }
+
+
+    /** Runs the live audio callback once, as the sound card would. */
+    float runAudioCallback (AudioEngine& engine, int numSamples = 512)
+    {
+        AudioBuffer<float> out (2, numSamples);
+        out.clear();
+        AudioIODeviceCallbackContext context;
+        engine.audioDeviceIOCallbackWithContext (nullptr, 0, out.getArrayOfWritePointers(), 2, numSamples, context);
+        return jmax (out.getMagnitude (0, 0, numSamples), out.getMagnitude (1, 0, numSamples));
+    }
+
+    std::shared_ptr<SampleData> makeRamp (int length)
+    {
+        auto d = std::make_shared<SampleData>();
+        d->buffer.setSize (1, length);
+
+        for (int i = 0; i < length; ++i)
+            d->buffer.setSample (0, i, (float) (i + 1) / (float) length);
+
+        return d;
+    }
+
+    void testSampleEditing (const File& dir)
+    {
+        std::cout << "Sample editor: edits, undo, saving" << std::endl;
+
+        // pure edit functions
+        auto ramp = makeRamp (100);
+        check (approx (SampleEditing::reverse (*ramp, {})->buffer.getSample (0, 0), 1.0, 1e-6), "reverse flips the audio");
+        check (approx (SampleEditing::fadeIn (*ramp, {})->buffer.getSample (0, 0), 0.0, 1e-6)
+                   && approx (SampleEditing::fadeOut (*ramp, {})->buffer.getSample (0, 99), 0.0, 1e-6), "fades reach silence");
+        check (SampleEditing::trimTo (*ramp, { 10, 30 })->getLength() == 20, "trim keeps only the selection");
+        check (SampleEditing::remove (*ramp, { 10, 30 })->getLength() == 80
+                   && approx (SampleEditing::remove (*ramp, { 10, 30 })->buffer.getSample (0, 10), 0.31, 1e-6),
+               "delete removes the selection and closes the gap");
+        check (SampleEditing::remove (*ramp, {}) == nullptr, "deleting everything is refused");
+        check (approx (peakOf (*SampleEditing::normalize (*ramp, {})), Decibels::decibelsToGain (-0.1), 1e-5), "normalize to -0.1 dB");
+        check (approx (SampleEditing::silence (*ramp, { 0, 50 })->buffer.getMagnitude (0, 0, 50), 0.0, 1e-9)
+                   && approx (SampleEditing::silence (*ramp, { 0, 50 })->buffer.getSample (0, 50), 0.51, 1e-6),
+               "silence only affects the selection");
+        check (approx (SampleEditing::applyGain (*ramp, {}, -6.0206f)->buffer.getSample (0, 99), 0.5, 1e-3), "gain -6 dB halves the level");
+
+        AudioBuffer<float> processed (2, 30);   // 20 samples replace the selection, 10 more are a tail
+        processed.clear();
+        processed.setSample (1, 0, 1.0f);       // makes it stereo
+        processed.setSample (0, 25, 0.5f);
+        auto replaced = SampleEditing::replaceWithProcessed (*ramp, { 80, 100 }, processed);
+        check (replaced->getLength() == 110 && replaced->buffer.getNumChannels() == 2, "effect tail extends the sample and keeps stereo");
+        check (approx (replaced->buffer.getSample (0, 105), 0.5, 1e-6) && approx (replaced->buffer.getSample (0, 79), 0.8, 1e-6),
+               "processed audio lands in the right place");
+
+        // committing edits through the session
+        const auto projectFile = dir.getChildFile ("edits.mydaw");
+        const auto sourceFile = writeSine (dir.getChildFile ("edit-source.wav"), 440.0, 1.0, 44100.0, 1);
+        int originalLength = 0;
+
+        {
+            TestEnvironment env (dir);
+            auto& s = *env.session;
+            String error;
+            auto c = s.addSampleChannel (sourceFile, error);
+            originalLength = c->sample->getLength();
+
+            s.commitSampleEdit (*c, SampleEditing::normalize (*c->sample, {}));
+            check (approx (peakOf (*c->sample), Decibels::decibelsToGain (-0.1), 1e-3) && c->sampleModified, "edit is applied to the channel");
+            s.commitSampleEdit (*c, SampleEditing::trimTo (*c->sample, { 0, 22050 }));
+            check (c->sample->getLength() == 22050, "second edit applied");
+            check (s.undoSampleEdit (*c) && c->sample->getLength() == originalLength, "undo restores the previous version");
+            check (s.redoSampleEdit (*c) && c->sample->getLength() == 22050, "redo re-applies it");
+
+            // the edited sound is what the sequencer plays
+            auto* p = s.getCurrentPattern();
+            p->notes.push_back ({ c->id, 0, 1, 60, 1.0f });
+            s.patternChanged (p->id);
+            s.addClip (p->id, 0, 0.0);
+            s.exportWav (dir.getChildFile ("edited.wav"));
+            const auto audio = readWav (dir.getChildFile ("edited.wav"));
+            check (audio.rms (0.1, 0.45) > 0.3 && audio.rms (0.52, 1.0) < 1.0e-4, "playback uses the edited (trimmed, louder) sample");
+
+            check (s.saveProject (projectFile).wasOk(), "project with an edited sample saves");
+            check (! c->sampleModified && c->sampleFile.isAChildOf (dir.getChildFile ("edits Samples"))
+                       && c->sampleFile.existsAsFile() && sourceFile.existsAsFile(),
+                   "edited sample is written next to the project; the original file is untouched");
+        }
+
+        {
+            TestEnvironment env (dir);
+            auto& s = *env.session;
+            StringArray warnings;
+            s.loadProject (projectFile, warnings);
+            auto& c = *s.getProject().channels[0];
+            check (warnings.isEmpty() && c.sample != nullptr && c.sample->getLength() == 22050, "reloaded project uses the edited sample");
+            check (c.originalSampleFile == sourceFile, "original file is remembered");
+
+            String error;
+            check (s.revertSampleToOriginal (c, error) && c.sample->getLength() == originalLength, "revert to original");
+            check (s.undoSampleEdit (c) && c.sample->getLength() == 22050, "revert can be undone");
+
+            // live preview of the sample (as heard while editing), independent of the transport
+            auto& engine = s.getEngine();
+            engine.setMasterVolume (1.0f);
+            engine.startSamplePreview (c.sample, {}, nullptr, false);
+            const auto previewPeak = runAudioCallback (engine);
+            check (previewPeak > 0.9f && engine.getSamplePreviewPosition() > 400.0, "sample preview plays through the audio callback");
+
+            for (int i = 0; i < 60; ++i)
+                runAudioCallback (engine);
+
+            check (! engine.isSamplePreviewPlaying() && runAudioCallback (engine) < 1.0e-6f, "preview stops at the end of the sample");
+
+            // an empty effect chain renders the input unchanged plus the tail
+            EffectChain empty;
+            AudioBuffer<float> out;
+            check (s.getEngine().renderThroughChain (empty, c.sample->buffer, c.sample->sampleRate, 100, out).wasOk()
+                       && out.getNumSamples() == 22150 && approx (out.getSample (0, 1000), c.sample->buffer.getSample (0, 1000), 1e-6)
+                       && approx (out.getSample (1, 1000), c.sample->buffer.getSample (0, 1000), 1e-6),
+                   "offline render passes audio through and appends the tail");
+        }
+    }
+
+    void testSampleEffects (const File& dir, const File& effectFile)
+    {
+        std::cout << "Sample editor: applying a VST3 effect to a sample" << std::endl;
+        TestEnvironment env (dir);
+        auto& s = *env.session;
+        env.plugins.scanFile (effectFile);
+        std::unique_ptr<const PluginDescription> fxDesc (findType (env.plugins.getKnownPlugins(), false));
+
+        if (fxDesc == nullptr)
+        {
+            check (false, "effect plug-in available");
+            return;
+        }
+
+        String error;
+        auto c = s.addSampleChannel (writeSine (dir.getChildFile ("fx-source.wav"), 440.0, 0.5, 48000.0, 1), error);
+
+        // the sample editor's own effect rack (not the channel's inserts)
+        EffectChain rack;
+        s.getEngine().addAuxiliaryChain (&rack);
+        auto instance = env.plugins.createInstance (*fxDesc, s.getEngine().getSampleRate(), s.getEngine().getBlockSize(), error);
+        PluginHelpers::configureStereo (*instance, false);
+        s.getEngine().preparePlugin (*instance);
+        instance->getParameters()[0]->setValueNotifyingHost (0.5f);
+        auto slot = std::make_unique<EffectChain::Slot>();
+        slot->plugin = std::move (instance);
+        slot->description = *fxDesc;
+
+        {
+            const ScopedLock sl (s.getEngine().getLock());
+            rack.slots.push_back (std::move (slot));
+            s.getEngine().auxiliaryChainChanged();
+        }
+
+        const auto before = peakOf (*c->sample);
+        const Range<int> firstHalf (0, c->sample->getLength() / 2);
+        AudioBuffer<float> section (c->sample->buffer.getNumChannels(), firstHalf.getLength());
+        section.copyFrom (0, 0, c->sample->buffer, 0, 0, firstHalf.getLength());
+
+        AudioBuffer<float> processed;
+        check (s.getEngine().renderThroughChain (rack, section, c->sample->sampleRate, 0, processed).wasOk(), "effect renders offline");
+        s.commitSampleEdit (*c, SampleEditing::replaceWithProcessed (*c->sample, firstHalf, processed));
+
+        const auto& b = c->sample->buffer;
+        check (approx (b.getMagnitude (0, 0, firstHalf.getLength()), before * 0.5, before * 0.02),
+               "effect is baked into the selected part (gain 0.5)");
+        check (approx (b.getMagnitude (0, firstHalf.getEnd(), b.getNumSamples() - firstHalf.getEnd()), before, before * 0.02),
+               "the rest of the sample is unchanged");
+        check (b.getNumChannels() == 1, "mono stays mono when the effect output is mono-compatible");
+        check (approx (s.getEngine().getSampleRate(), 44100.0, 1e-9) && approx (rack.slots[0]->plugin->getSampleRate(), 44100.0, 1e-9),
+               "plug-in is prepared for live preview again after rendering at the sample's rate");
+
+        // the live preview goes through the rack (gain 0.5) before anything is applied
+        auto& engine = s.getEngine();
+        engine.setMasterVolume (1.0f);
+        engine.startSamplePreview (c->sample, { firstHalf.getEnd(), c->sample->getLength() }, nullptr, false);
+        const auto dry = runAudioCallback (engine);
+        engine.startSamplePreview (c->sample, { firstHalf.getEnd(), c->sample->getLength() }, &rack, false);
+        runAudioCallback (engine);   // first block may include the plug-in's smoothing
+        const auto wet = runAudioCallback (engine);
+        check (dry > 0.1f && approx (wet, dry * 0.5f, dry * 0.05f), "preview is heard through the effect rack");
+
+        s.getEngine().removeAuxiliaryChain (&rack);
+        check (! engine.isSamplePreviewPlaying(), "removing the rack stops its preview");
+    }
+
     void testPluginHosting (const File& dir, const File& synthFile, const File& effectFile)
     {
         std::cout << "VST3 plug-in hosting" << std::endl;
@@ -382,9 +579,13 @@ int main (int argc, char* argv[])
     testSampler (dir);
     testFreeBarLengthsAndArrangement (dir);
     testFiles (dir);
+    testSampleEditing (dir);
 
     if (argc >= 3)
+    {
         testPluginHosting (dir, File (argv[1]), File (argv[2]));
+        testSampleEffects (dir, File (argv[2]));
+    }
     else
         std::cout << "(plug-in tests skipped: pass an instrument and an effect .vst3 to run them)" << std::endl;
 

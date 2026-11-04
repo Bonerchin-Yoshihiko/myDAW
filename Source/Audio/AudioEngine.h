@@ -66,6 +66,25 @@ public:
     /** Plays a note on a channel immediately (used for auditioning). */
     void previewNote (int channelId, int pitch, float velocity, bool on);
 
+    // ---- sample editor support (message thread)
+    /** Registers an effect chain that is not part of the project (the sample editor's rack),
+        so it stays prepared when the audio device changes. */
+    void addAuxiliaryChain (EffectChain*);
+    void removeAuxiliaryChain (EffectChain*);      // also stops a preview that uses it
+    void auxiliaryChainChanged();                  // call with the lock held after adding/removing slots
+
+    /** Plays (part of) a sample through an optional effect chain, independent of the transport. */
+    void startSamplePreview (std::shared_ptr<const SampleData>, Range<int> range, EffectChain*, bool loop);
+    void stopSamplePreview();
+    bool isSamplePreviewPlaying() const noexcept   { return uiPreviewActive.load(); }
+    double getSamplePreviewPosition() const noexcept { return uiPreviewPosition.load(); } // source frames
+
+    /** Runs audio through an effect chain offline at the given sample rate, appending
+        `tailSamples` of silence so reverbs/delays can ring out. Plug-in latency is compensated.
+        The output has 2 channels and input length + tailSamples frames. */
+    Result renderThroughChain (EffectChain&, const AudioBuffer<float>& input, double sampleRate,
+                               int tailSamples, AudioBuffer<float>& output);
+
     /** Renders a sequence offline into a WAV file. Blocks the audio thread meanwhile. */
     Result renderToFile (const File&, std::shared_ptr<const Sequence>, double tailSeconds,
                          std::function<void (double)> progress = {});
@@ -87,6 +106,7 @@ private:
     void dispatch (double fromBeat, double toBeat, double sampleOffset, int numSamples);
     void handlePreviewEvents();
     void releaseAllNotes (bool hardStop);
+    void renderSamplePreview (int numSamples);
 
     CriticalSection lock;
     std::vector<std::shared_ptr<Channel>> channels;
@@ -109,6 +129,22 @@ private:
     std::array<std::atomic<float>, 2> masterPeak {};
     std::atomic<double> uiPosition { 0.0 };
     std::atomic<bool> uiPlaying { false }, uiSongMode { false };
+
+    struct SamplePreview
+    {
+        std::shared_ptr<const SampleData> sample;
+        EffectChain* chain = nullptr;
+        int start = 0, end = 0;
+        double position = 0.0;
+        bool loop = false, active = false, sourceFinished = false;
+        int tailRemaining = 0;
+        AudioBuffer<float> buffer;
+    };
+
+    SamplePreview samplePreview;
+    std::vector<EffectChain*> auxiliaryChains;
+    std::atomic<bool> uiPreviewActive { false };
+    std::atomic<double> uiPreviewPosition { 0.0 };
 
     struct PreviewEvent { int channelId, pitch; float velocity; bool on; };
     AbstractFifo previewFifo { 256 };

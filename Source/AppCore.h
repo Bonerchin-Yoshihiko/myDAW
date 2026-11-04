@@ -2,6 +2,7 @@
 
 #include "Session.h"
 #include "UI/PluginWindows.h"
+#include "UI/SampleEditor.h"
 
 /** Owns the long-lived application objects, in the right construction/destruction order. */
 class AppCore
@@ -19,11 +20,17 @@ public:
         plugins = std::make_unique<PluginManager> (*properties.getUserSettings());
         session = std::make_unique<Session> (engine, *plugins);
         session->onPluginWillBeDeleted = [this] (AudioPluginInstance* p) { pluginWindows.close (p); };
+        sampleEditors = std::make_unique<SampleEditorManager> (*session, pluginWindows);
     }
 
     ~AppCore()
     {
         stopAudio();
+
+        if (sampleEditors != nullptr)
+            sampleEditors->closeAll();
+
+        sampleEditors.reset();
         pluginWindows.closeAll();
         session.reset();
         plugins.reset();
@@ -60,4 +67,5 @@ public:
     std::unique_ptr<PluginManager> plugins;
     PluginWindowManager pluginWindows;
     std::unique_ptr<Session> session;
+    std::unique_ptr<SampleEditorManager> sampleEditors;
 };

@@ -2,6 +2,7 @@
 
 #include "Session.h"
 #include "UI/PluginWindows.h"
+#include "UI/SampleEditor.h"
 #include "UI/Theme.h"
 
 /** Pop-up panel with a channel's settings and its effect chain.
@@ -10,13 +11,14 @@ class ChannelSettings : public Component,
                         private Session::Listener
 {
 public:
-    ChannelSettings (Session&, PluginWindowManager&, int channelId);
+    ChannelSettings (Session&, PluginWindowManager&, int channelId, SampleEditorManager* = nullptr);
     ~ChannelSettings() override;
 
     void paint (Graphics&) override;
     void resized() override;
 
-    static void show (Session&, PluginWindowManager&, int channelId, Component& target);
+    static void show (Session&, PluginWindowManager&, int channelId, Component& target,
+                      SampleEditorManager* sampleEditors = nullptr);
 
 private:
     void sessionChanged (int changes) override;
@@ -28,6 +30,7 @@ private:
 
     Session& session;
     PluginWindowManager& windows;
+    SampleEditorManager* sampleEditors;
     const int channelId;
 
     Label title;
@@ -35,7 +38,7 @@ private:
     Label volumeLabel { {}, "Volume" }, panLabel { {}, "Pan" }, rootLabel { {}, "Root note" }, fileLabel;
     Slider volumeSlider, panSlider, rootSlider;
     ToggleButton oneShotToggle { "One-shot (ignore note length)" };
-    TextButton replaceButton { "Replace sample..." }, editPluginButton { "Open plug-in window" };
+    TextButton replaceButton { "Replace sample..." }, editSampleButton { "Edit sample..." }, editPluginButton { "Open plug-in window" };
     Label effectsLabel { {}, "INSERT EFFECTS" };
     TextButton addEffectButton { "+ Add effect" };
     OwnedArray<Component> effectRows;

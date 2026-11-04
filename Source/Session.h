@@ -19,6 +19,7 @@ public:
         selectionChanged      = 1 << 5,
         projectReplaced       = 1 << 6,
         dirtyChanged          = 1 << 7,
+        sampleChanged         = 1 << 8,
         everything            = 0xffff
     };
 
@@ -60,6 +61,15 @@ public:
     void removeEffect (Channel* channelOrNullForMaster, int index);
     void channelSettingsChanged();
     void previewNote (int channelId, int pitch, bool on);
+
+    // ---- sample editing (destructive edits of a sample channel's audio, undoable)
+    void commitSampleEdit (Channel&, std::shared_ptr<const SampleData> newData);
+    bool undoSampleEdit (Channel&);
+    bool redoSampleEdit (Channel&);
+    bool revertSampleToOriginal (Channel&, String& error);
+    /** Writes edited samples that are not on disk yet into `folder` and points the channels at them. */
+    Result writeEditedSamples (const File& folder);
+    File getEditedSamplesFolder() const;
 
     // ---- patterns
     Pattern* getCurrentPattern() const             { return project.findPattern (currentPatternId); }
@@ -105,6 +115,7 @@ private:
     std::shared_ptr<Sequence> buildSequence (PlayMode, bool forExport) const;
     void rebuildSequence (bool resetPosition);
     void pushChannelsToEngine();
+    void swapSample (Channel&, std::shared_ptr<const SampleData>);
     void replaceProject (Project&&, std::vector<std::unique_ptr<EffectChain::Slot>> masterSlots);
 
     var channelToVar (const Channel&, const File& baseDir) const;

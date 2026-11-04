@@ -3,7 +3,7 @@
 
 MainComponent::MainComponent (AppCore& c)
     : core (c), session (*c.session), transport (session), patternList (session),
-      songEditor (session), patternEditor (session, c.pluginWindows)
+      songEditor (session), patternEditor (session, c.pluginWindows, *c.sampleEditors)
 {
     addAndMakeVisible (transport);
     addAndMakeVisible (patternList);

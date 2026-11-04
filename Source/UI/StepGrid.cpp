@@ -39,9 +39,14 @@ public:
 
         more.setButtonText ("...");
         more.setTooltip ("Channel settings and insert effects");
-        more.onClick = [this] { ChannelSettings::show (grid.session, grid.pluginWindows, channelId, more); };
+        more.onClick = [this] { ChannelSettings::show (grid.session, grid.pluginWindows, channelId, more, &grid.sampleEditors); };
 
-        for (auto* comp : std::initializer_list<Component*> { &mute, &volume, &keys, &more })
+        edit.setButtonText ("Edit");
+        edit.setTooltip (c.isSample() ? "Edit the sound: waveform, trim, fades, and VST effects baked into the sample"
+                                      : "Open the instrument plug-in's window");
+        edit.onClick = [this] { grid.editChannel (channelId); };
+
+        for (auto* comp : std::initializer_list<Component*> { &mute, &volume, &edit, &keys, &more })
             addAndMakeVisible (comp);
     }
 
@@ -55,6 +60,8 @@ public:
         more.setBounds (r.removeFromRight (24).reduced (0, 1));
         r.removeFromRight (3);
         keys.setBounds (r.removeFromRight (38).reduced (0, 1));
+        r.removeFromRight (3);
+        edit.setBounds (r.removeFromRight (36).reduced (0, 1));
         r.removeFromRight (3);
         volume.setBounds (r.removeFromRight (26).expanded (0, 3));
         r.removeFromRight (2);
@@ -149,7 +156,7 @@ public:
 
     StepGrid& grid;
     const int channelId;
-    TextButton mute, keys, more;
+    TextButton mute, keys, more, edit;
     Slider volume;
     Rectangle<int> nameArea;
     int previewPitch = -1;
@@ -158,7 +165,8 @@ public:
 };
 
 //==============================================================================
-StepGrid::StepGrid (Session& s, PluginWindowManager& w) : session (s), pluginWindows (w)
+StepGrid::StepGrid (Session& s, PluginWindowManager& w, SampleEditorManager& e)
+    : session (s), pluginWindows (w), sampleEditors (e)
 {
     session.addListener (this);
     rebuildRows();
@@ -483,6 +491,19 @@ void StepGrid::renameChannel (int channelId)
     }), true);
 }
 
+void StepGrid::editChannel (int channelId)
+{
+    auto* c = session.getProject().findChannel (channelId);
+
+    if (c == nullptr)
+        return;
+
+    if (c->isSample())
+        sampleEditors.open (channelId);
+    else if (c->plugin != nullptr)
+        pluginWindows.show (*c->plugin, c->name);
+}
+
 void StepGrid::showChannelMenu (int channelId, Component& target)
 {
     auto* c = session.getProject().findChannel (channelId);
@@ -494,8 +515,12 @@ void StepGrid::showChannelMenu (int channelId, Component& target)
     m.addItem ("Settings & effects...", [this, channelId, t = SafePointer<Component> (&target)]
     {
         if (t != nullptr)
-            ChannelSettings::show (session, pluginWindows, channelId, *t);
+            ChannelSettings::show (session, pluginWindows, channelId, *t, &sampleEditors);
     });
+
+    if (c->isSample())
+        m.addItem ("Edit sample (waveform, VST effects)...", c->sample != nullptr, false,
+                   [this, channelId] { sampleEditors.open (channelId); });
 
     if (c->isPlugin())
         m.addItem ("Open plug-in window", c->plugin != nullptr, false, [this, channelId]
