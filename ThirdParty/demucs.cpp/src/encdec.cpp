@@ -10,7 +10,7 @@ void demucscpp::apply_freq_encoder(const struct demucscpp::demucs_model &model,
                                    const Eigen::Tensor3dXf &x_in,
                                    Eigen::Tensor3dXf &x_out)
 {
-    Eigen::Tensor3dXf x_shuf = x_in.shuffle(Eigen::array<int, 3>({2, 0, 1}));
+    Eigen::Tensor3dXf x_shuf = x_in.shuffle(Eigen::array<Eigen::Index, 3>({2, 0, 1}));
 
     // 2D Convolution operation
     Eigen::Tensor3dXf y;
@@ -40,13 +40,13 @@ void demucscpp::apply_freq_encoder(const struct demucscpp::demucs_model &model,
     };
 
     // reverse all dims
-    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<int, 3>({2, 1, 0}));
+    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({2, 1, 0}));
     demucscpp::apply_dconv(model, y_shuff, 0, 0, encoder_idx,
                            y_shuff.dimension(2));
 
     // swap back from H,C,W to C,H,W
     // then put W in front to use conv1d function for width=1 conv2d
-    y = y_shuff.shuffle(Eigen::array<int, 3>({2, 1, 0}));
+    y = y_shuff.shuffle(Eigen::array<Eigen::Index, 3>({2, 1, 0}));
 
     // need rewrite, norm2, glu
     switch (encoder_idx)
@@ -73,7 +73,7 @@ void demucscpp::apply_freq_encoder(const struct demucscpp::demucs_model &model,
         break;
     };
 
-    y_shuff = y.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // copy into x_out
     x_out = demucscpp::glu(y_shuff, 0);
@@ -200,7 +200,7 @@ void demucscpp::apply_freq_decoder(const struct demucscpp::demucs_model &model,
 
     // swap first and second dimensions
     // from C,H,W into H,C,W
-    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<int, 3>({1, 0, 2}));
+    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2}));
     y = y_shuff;
 
     // start the DConv
@@ -209,7 +209,7 @@ void demucscpp::apply_freq_decoder(const struct demucscpp::demucs_model &model,
     // dconv finished
 
     // swap back from H,C,W to C,H,W
-    Eigen::Tensor3dXf y_shuff_2 = y.shuffle(Eigen::array<int, 3>({1, 0, 2}));
+    Eigen::Tensor3dXf y_shuff_2 = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2}));
 
     // now time for the transpose convolution
 
@@ -364,7 +364,7 @@ void demucscpp_v3::apply_freq_encoder_v3(
     const struct demucscpp_v3::demucs_v3_model &model, int encoder_idx,
     const Eigen::Tensor3dXf &x_in, Eigen::Tensor3dXf &x_out)
 {
-    Eigen::Tensor3dXf x_shuf = x_in.shuffle(Eigen::array<int, 3>({2, 0, 1}));
+    Eigen::Tensor3dXf x_shuf = x_in.shuffle(Eigen::array<Eigen::Index, 3>({2, 0, 1}));
 
     // 2D Convolution operation
     Eigen::Tensor3dXf y;
@@ -394,13 +394,13 @@ void demucscpp_v3::apply_freq_encoder_v3(
     };
 
     // reverse all dims
-    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<int, 3>({2, 1, 0}));
+    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({2, 1, 0}));
     demucscpp_v3::apply_dconv_v3(model, y_shuff, 0, encoder_idx,
                                  y_shuff.dimension(2));
 
     // swap back from H,C,W to C,H,W
     // then put W in front to use conv1d function for width=1 conv2d
-    y = y_shuff.shuffle(Eigen::array<int, 3>({2, 1, 0}));
+    y = y_shuff.shuffle(Eigen::array<Eigen::Index, 3>({2, 1, 0}));
 
     // need rewrite, norm2, glu
     switch (encoder_idx)
@@ -427,7 +427,7 @@ void demucscpp_v3::apply_freq_encoder_v3(
         break;
     };
 
-    y_shuff = y.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // copy into x_out
     x_out = demucscpp::glu(y_shuff, 0);
@@ -547,7 +547,7 @@ void demucscpp_v3::apply_freq_encoder_4(
     // encoder 4 (i.e. encoder_idx 0) has the inject param
     // swap first two dims of x_inject
 
-    y_shuff = y.shuffle(Eigen::array<int, 3>({1, 0, 2})) + x_inject;
+    y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2})) + x_inject;
 
     // apply groupnorm
     y = groupnorm::group_norm_fused_gelu(
@@ -568,7 +568,7 @@ void demucscpp_v3::apply_freq_encoder_4(
                               1e-05);
 
     // copy into x_out
-    y_shuff = y.shuffle(Eigen::array<int, 3>({1, 0, 2}));
+    y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2}));
     x_out = demucscpp::glu(y_shuff, 0);
 }
 
@@ -585,7 +585,7 @@ void demucscpp_v3::apply_shared_encoder_5(
 
     // shuffle first two dims of x_in
     // first assign y to x_in with first two dims swapped
-    y = x_in.shuffle(Eigen::array<int, 3>({1, 0, 2}));
+    y = x_in.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2}));
 
     y = demucscpp::conv1d<768, 1536, 4, 2, 1, 1>(
         y, model.encoder_5_conv_weight,
@@ -662,7 +662,7 @@ Eigen::Tensor3dXf demucscpp_v3::apply_freq_decoder_1(
 {
     const int decoder_idx = 1;
 
-    Eigen::Tensor3dXf y = x_in.shuffle(Eigen::array<int, 3>({1, 0, 2})) + skip;
+    Eigen::Tensor3dXf y = x_in.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2})) + skip;
 
     // first glu(norm1(rewrite))
     y = demucscpp::conv2d<768, 1536, 3, 3, 1, 1, 1, 1, 1, 1>(
@@ -704,7 +704,7 @@ void demucscpp_v3::apply_time_decoder_0(
     // simple decoder
     // rewrite and conv_tr, no group norms
     // swap first two dims
-    Eigen::Tensor3dXf y_shuff = x_in.shuffle(Eigen::array<int, 3>({1, 0, 2}));
+    Eigen::Tensor3dXf y_shuff = x_in.shuffle(Eigen::array<Eigen::Index, 3>({1, 0, 2}));
 
     // no norm1, rewrite, dconv for tdecoder0
     // simply conv_tr -> norm2

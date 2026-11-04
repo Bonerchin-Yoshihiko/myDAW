@@ -73,8 +73,8 @@ void demucscpp::model_inference(
     // remove 2: 2 + le of stft
     // same behavior as _spec in the python apply.py code
     buffers.z = stft_buf.spec.slice(
-        Eigen::array<int, 3>{0, 0, 2},
-        Eigen::array<int, 3>{2, (int)stft_buf.spec.dimension(1),
+        Eigen::array<Eigen::Index, 3>{0, 0, 2},
+        Eigen::array<Eigen::Index, 3>{2, (int)stft_buf.spec.dimension(1),
                              (int)stft_buf.spec.dimension(2) - 4});
 
     // print z shape
@@ -226,13 +226,13 @@ void demucscpp::model_inference(
         // Apply the conv1d function
         // Reshape back to 512x8x336 and store in buffers.x_3_channel_upsampled
         Eigen::Tensor3dXf x_3_reshaped = buffers.x_3.reshape(
-            Eigen::array<int, 3>({1, 384, 8 * n_stft_frames}));
+            Eigen::array<Eigen::Index, 3>({1, 384, 8 * n_stft_frames}));
         Eigen::Tensor3dXf x_3_reshaped_upsampled =
             demucscpp::conv1d<384, 512, 1, 1, 0, 1>(
                 x_3_reshaped, ct_4s->channel_upsampler_weight,
                 ct_4s->channel_upsampler_bias);
         buffers.x_3_channel_upsampled = x_3_reshaped_upsampled.reshape(
-            Eigen::array<int, 3>({512, 8, n_stft_frames}));
+            Eigen::array<Eigen::Index, 3>({512, 8, n_stft_frames}));
 
         cb(current_progress + segment_progress * 8.0f / 26.0f,
            "Freq channels upsampled");
@@ -263,7 +263,7 @@ void demucscpp::model_inference(
         // reshape buffers.x_3_channel_upsampled into 1, 512, 2688
         // when skipping the crosstransformer
         // Eigen::Tensor3dXf x_3_reshaped_upsampled_2 =
-        // buffers.x_3_channel_upsampled.reshape(Eigen::array<int, 3>({1, 512,
+        // buffers.x_3_channel_upsampled.reshape(Eigen::array<Eigen::Index, 3>({1, 512,
         // 8*336})); buffers.x_3_channel_upsampled = x_3_reshaped_upsampled_2;
 
         // then apply the conv1d_2d function
@@ -274,7 +274,7 @@ void demucscpp::model_inference(
                 ct_4s->channel_downsampler_weight,
                 ct_4s->channel_downsampler_bias);
         buffers.x_3 = x_3_reshaped_downsampled.reshape(
-            Eigen::array<int, 3>({384, 8, n_stft_frames}));
+            Eigen::array<Eigen::Index, 3>({384, 8, n_stft_frames}));
         cb(current_progress + segment_progress * 18.0f / 26.0f,
            "Freq channels downsampled");
 
@@ -295,12 +295,12 @@ void demucscpp::model_inference(
         // we need to swap axis and reshape into 384, 8, 336
 
         // swap axis
-        Eigen::array<int, 3> perm = {1, 0, 2};
+        Eigen::array<Eigen::Index, 3> perm = {1, 0, 2};
         Eigen::Tensor3dXf x_3_swapped = buffers.x_3.shuffle(perm);
         // now unflatten last 2 dims from 1, 2688 to 8, 336
 
         Eigen::Tensor3dXf x_3_reshaped =
-            x_3_swapped.reshape(Eigen::array<int, 3>({384, 8, 336}));
+            x_3_swapped.reshape(Eigen::array<Eigen::Index, 3>({384, 8, 336}));
 
         buffers.x_3 = x_3_reshaped;
 
@@ -431,8 +431,8 @@ void demucscpp::model_inference(
 
         // need to re-pad 2: 2 + le on spectrogram
         // opposite of this
-        // buffers.z = stft_buf.spec.slice(Eigen::array<int, 3>{0, 0, 2},
-        //         Eigen::array<int, 3>{2, (int)stft_buf.spec.dimension(1),
+        // buffers.z = stft_buf.spec.slice(Eigen::array<Eigen::Index, 3>{0, 0, 2},
+        //         Eigen::array<Eigen::Index, 3>{2, (int)stft_buf.spec.dimension(1),
         //         (int)stft_buf.spec.dimension(2) - 4});
         // Add padding to spectrogram
 
@@ -502,8 +502,8 @@ void demucscpp_v3::model_v3_inference(
     // remove 2: 2 + le of stft
     // same behavior as _spec in the python apply.py code
     buffers.z = stft_buf.spec.slice(
-        Eigen::array<int, 3>{0, 0, 2},
-        Eigen::array<int, 3>{2, (int)stft_buf.spec.dimension(1),
+        Eigen::array<Eigen::Index, 3>{0, 0, 2},
+        Eigen::array<Eigen::Index, 3>{2, (int)stft_buf.spec.dimension(1),
                              (int)stft_buf.spec.dimension(2) - 4});
 
     // print z shape
@@ -814,8 +814,8 @@ void demucscpp_v3::model_v3_inference(
 
         // need to re-pad 2: 2 + le on spectrogram
         // opposite of this
-        // buffers.z = stft_buf.spec.slice(Eigen::array<int, 3>{0, 0, 2},
-        //         Eigen::array<int, 3>{2, (int)stft_buf.spec.dimension(1),
+        // buffers.z = stft_buf.spec.slice(Eigen::array<Eigen::Index, 3>{0, 0, 2},
+        //         Eigen::array<Eigen::Index, 3>{2, (int)stft_buf.spec.dimension(1),
         //         (int)stft_buf.spec.dimension(2) - 4});
         // Add padding to spectrogram
 

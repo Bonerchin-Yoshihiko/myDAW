@@ -26,11 +26,11 @@ static Eigen::Tensor3dXf create_2d_sin_embedding(int d_model, int height,
         for (int j = 0; j < d_model / 2; ++j)
         {
             float val_w = i * div_term(j);
-            pe.slice(Eigen::array<int, 3>({j * 2, 0, i}),
-                     Eigen::array<int, 3>({1, height, 1}))
+            pe.slice(Eigen::array<Eigen::Index, 3>({j * 2, 0, i}),
+                     Eigen::array<Eigen::Index, 3>({1, height, 1}))
                 .setConstant(std::sin(val_w));
-            pe.slice(Eigen::array<int, 3>({j * 2 + 1, 0, i}),
-                     Eigen::array<int, 3>({1, height, 1}))
+            pe.slice(Eigen::array<Eigen::Index, 3>({j * 2 + 1, 0, i}),
+                     Eigen::array<Eigen::Index, 3>({1, height, 1}))
                 .setConstant(std::cos(val_w));
         }
     }
@@ -40,11 +40,11 @@ static Eigen::Tensor3dXf create_2d_sin_embedding(int d_model, int height,
         for (int j = 0; j < d_model / 2; ++j)
         {
             float val_h = i * div_term(j);
-            pe.slice(Eigen::array<int, 3>({d_model + j * 2, i, 0}),
-                     Eigen::array<int, 3>({1, 1, width}))
+            pe.slice(Eigen::array<Eigen::Index, 3>({d_model + j * 2, i, 0}),
+                     Eigen::array<Eigen::Index, 3>({1, 1, width}))
                 .setConstant(std::sin(val_h));
-            pe.slice(Eigen::array<int, 3>({d_model + j * 2 + 1, i, 0}),
-                     Eigen::array<int, 3>({1, 1, width}))
+            pe.slice(Eigen::array<Eigen::Index, 3>({d_model + j * 2 + 1, i, 0}),
+                     Eigen::array<Eigen::Index, 3>({1, 1, width}))
                 .setConstant(std::cos(val_h));
         }
     }
@@ -255,7 +255,7 @@ void demucscpp::apply_crosstransformer(
     Eigen::Tensor3dXf pos_embed_1d = create_sin_embedding(T2, C);
 
     // shuffle axes of xt from 0,1,2 to 0,2,1
-    Eigen::Tensor3dXf xt_shuf = xt.shuffle(Eigen::array<int, 3>{0, 2, 1});
+    Eigen::Tensor3dXf xt_shuf = xt.shuffle(Eigen::array<Eigen::Index, 3>{0, 2, 1});
 
     xt = demucscpp::layer_norm(
              xt_shuf, model.crosstransformer->crosstransformer_norm_in_t_weight,
@@ -326,7 +326,7 @@ void demucscpp::apply_crosstransformer(
        "Time (crosstransformer): layer 4");
 
     // permute last two dims of xt
-    Eigen::array<int, 3> permute_dims = {0, 2, 1};
+    Eigen::array<Eigen::Index, 3> permute_dims = {0, 2, 1};
     Eigen::Tensor3dXf xt_ret = xt.shuffle(permute_dims);
     xt = xt_ret;
 

@@ -130,11 +130,11 @@ shift_inference(const struct demucscpp::demucs_model &model,
     // waveform_outputs = waveform_outputs[..., max_shift:max_shift + length]
     Eigen::Tensor3dXf trimmed_waveform_outputs =
         waveform_outputs
-            .reshape(Eigen::array<int, 3>(
+            .reshape(Eigen::array<Eigen::Index, 3>(
                 {nb_out_sources, 2,
                  static_cast<int>(waveform_outputs.dimension(2))}))
-            .slice(Eigen::array<int, 3>({0, 0, max_shift - offset}),
-                   Eigen::array<int, 3>({nb_out_sources, 2, length}));
+            .slice(Eigen::array<Eigen::Index, 3>({0, 0, max_shift - offset}),
+                   Eigen::array<Eigen::Index, 3>({nb_out_sources, 2, length}));
 
     return trimmed_waveform_outputs;
 }
@@ -375,11 +375,11 @@ shift_inference(const struct demucscpp_v3::demucs_v3_model &model,
     // waveform_outputs = waveform_outputs[..., max_shift:max_shift + length]
     Eigen::Tensor3dXf trimmed_waveform_outputs =
         waveform_outputs
-            .reshape(Eigen::array<int, 3>(
+            .reshape(Eigen::array<Eigen::Index, 3>(
                 {nb_out_sources, 2,
                  static_cast<int>(waveform_outputs.dimension(2))}))
-            .slice(Eigen::array<int, 3>({0, 0, max_shift - offset}),
-                   Eigen::array<int, 3>({nb_out_sources, 2, length}));
+            .slice(Eigen::array<Eigen::Index, 3>({0, 0, max_shift - offset}),
+                   Eigen::array<Eigen::Index, 3>({nb_out_sources, 2, length}));
 
     return trimmed_waveform_outputs;
 }

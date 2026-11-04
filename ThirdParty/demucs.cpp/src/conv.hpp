@@ -97,10 +97,10 @@ Eigen::Tensor3dXf conv2d(const Eigen::Tensor3dXf &x, const Eigen::Tensor4dXf &w,
     // Reshape weights
     // reverse last 3 axes (out chanel x in chan x kernel height x kernel width
     // -> out chan x (kernel width x kernel height x in chan))
-    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<int, 4>({0, 3, 2, 1}));
+    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<Eigen::Index, 4>({0, 3, 2, 1}));
     // then flatten to the last axis
     Eigen::Tensor2dXf reshaped_weights_tensor =
-        w_swapped.reshape(Eigen::array<int, 2>{
+        w_swapped.reshape(Eigen::array<Eigen::Index, 2>{
             out_channels, in_channels * kernel_width * kernel_height});
     Eigen::MatrixXf reshaped_weights = Eigen::Map<Eigen::MatrixXf>(
         reshaped_weights_tensor.data(), reshaped_weights_tensor.dimension(0),
@@ -168,10 +168,10 @@ Eigen::Tensor3dXf conv2d_fused_gelu(const Eigen::Tensor3dXf &x,
     // Reshape weights
     // reverse last 3 axes (out chanel x in chan x kernel height x kernel width
     // -> out chan x (kernel width x kernel height x in chan))
-    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<int, 4>({0, 3, 2, 1}));
+    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<Eigen::Index, 4>({0, 3, 2, 1}));
     // then flatten to the last axis
     Eigen::Tensor2dXf reshaped_weights_tensor =
-        w_swapped.reshape(Eigen::array<int, 2>{
+        w_swapped.reshape(Eigen::array<Eigen::Index, 2>{
             out_channels, in_channels * kernel_width * kernel_height});
     Eigen::MatrixXf reshaped_weights = Eigen::Map<Eigen::MatrixXf>(
         reshaped_weights_tensor.data(), reshaped_weights_tensor.dimension(0),
@@ -217,11 +217,11 @@ Eigen::Tensor3dXf conv1d(const Eigen::Tensor3dXf &x, const Eigen::Tensor3dXf &w,
                          const Eigen::Tensor1dXf &b)
 {
     // copy w into a 4d tensor with trailing (,1) dimension
-    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<int, 4>{
+    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<Eigen::Index, 4>{
         {(int)w.dimension(0), (int)w.dimension(1), (int)w.dimension(2), 1}});
 
     // move 0 axis to the end
-    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // do 2d convolution inference here
     // treating the in_freq dimension as a width dimension with a no-op kernel
@@ -231,7 +231,7 @@ Eigen::Tensor3dXf conv1d(const Eigen::Tensor3dXf &x, const Eigen::Tensor3dXf &w,
 
     // move end axis to the front
     Eigen::Tensor3dXf y_out_shuf =
-        y_out.shuffle(Eigen::array<int, 3>({2, 0, 1}));
+        y_out.shuffle(Eigen::array<Eigen::Index, 3>({2, 0, 1}));
     return y_out_shuf;
 }
 
@@ -242,11 +242,11 @@ Eigen::Tensor3dXf conv1d_fused_gelu(const Eigen::Tensor3dXf &x,
                                     const Eigen::Tensor1dXf &b)
 {
     // copy w into a 4d tensor with trailing (,1) dimension
-    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<int, 4>{
+    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<Eigen::Index, 4>{
         {(int)w.dimension(0), (int)w.dimension(1), (int)w.dimension(2), 1}});
 
     // move 0 axis to the end
-    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // do 2d convolution inference here
     // treating the in_freq dimension as a width dimension with a no-op kernel
@@ -257,7 +257,7 @@ Eigen::Tensor3dXf conv1d_fused_gelu(const Eigen::Tensor3dXf &x,
 
     // move end axis to the front
     Eigen::Tensor3dXf y_out_shuf =
-        y_out.shuffle(Eigen::array<int, 3>({2, 0, 1}));
+        y_out.shuffle(Eigen::array<Eigen::Index, 3>({2, 0, 1}));
     return y_out_shuf;
 }
 
@@ -353,10 +353,10 @@ Eigen::Tensor3dXf conv2d_tr(const Eigen::Tensor3dXf &x,
     //  Reshape and prepare the weights as in conv2d_gemm
     //  keeping in mind transpose weights are stored as (Cin, Cout, Kh, Kw) (not
     //  Cout, Cin, Kh, Kw)
-    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<int, 4>(
+    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<Eigen::Index, 4>(
         {1, 3, 2, 0})); // Note the change in the shuffle order
     Eigen::Tensor2dXf reshaped_weights_tensor =
-        w_swapped.reshape(Eigen::array<int, 2>{
+        w_swapped.reshape(Eigen::array<Eigen::Index, 2>{
             out_channels, in_channels * kernel_height * kernel_width});
     Eigen::MatrixXf reshaped_weights = Eigen::Map<Eigen::MatrixXf>(
         reshaped_weights_tensor.data(), reshaped_weights_tensor.dimension(0),
@@ -424,10 +424,10 @@ Eigen::Tensor3dXf conv2d_tr_fused_gelu(const Eigen::Tensor3dXf &x,
     //  Reshape and prepare the weights as in conv2d_gemm
     //  keeping in mind transpose weights are stored as (Cin, Cout, Kh, Kw) (not
     //  Cout, Cin, Kh, Kw)
-    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<int, 4>(
+    Eigen::Tensor4dXf w_swapped = w.shuffle(Eigen::array<Eigen::Index, 4>(
         {1, 3, 2, 0})); // Note the change in the shuffle order
     Eigen::Tensor2dXf reshaped_weights_tensor =
-        w_swapped.reshape(Eigen::array<int, 2>{
+        w_swapped.reshape(Eigen::array<Eigen::Index, 2>{
             out_channels, in_channels * kernel_height * kernel_width});
     Eigen::MatrixXf reshaped_weights = Eigen::Map<Eigen::MatrixXf>(
         reshaped_weights_tensor.data(), reshaped_weights_tensor.dimension(0),
@@ -480,11 +480,11 @@ Eigen::Tensor3dXf conv1d_tr(const Eigen::Tensor3dXf &x,
                             const Eigen::Tensor1dXf &b)
 {
     // Convert 1D convolution to 2D convolution by adding an extra dimension
-    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<int, 4>{
+    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<Eigen::Index, 4>{
         {(int)w.dimension(0), (int)w.dimension(1), (int)w.dimension(2), 1}});
 
     // Move 0 axis to the end
-    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // Call the 2D transposed convolution function
     Eigen::Tensor3dXf y_out =
@@ -493,7 +493,7 @@ Eigen::Tensor3dXf conv1d_tr(const Eigen::Tensor3dXf &x,
 
     // Move end axis to the front
     Eigen::Tensor3dXf y_out_shuf =
-        y_out.shuffle(Eigen::array<int, 3>({2, 0, 1}));
+        y_out.shuffle(Eigen::array<Eigen::Index, 3>({2, 0, 1}));
 
     return y_out_shuf;
 }
@@ -505,11 +505,11 @@ Eigen::Tensor3dXf conv1d_tr_fused_gelu(const Eigen::Tensor3dXf &x,
                                        const Eigen::Tensor1dXf &b)
 {
     // Convert 1D convolution to 2D convolution by adding an extra dimension
-    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<int, 4>{
+    Eigen::Tensor4dXf w_4d = w.reshape(Eigen::array<Eigen::Index, 4>{
         {(int)w.dimension(0), (int)w.dimension(1), (int)w.dimension(2), 1}});
 
     // Move 0 axis to the end
-    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    Eigen::Tensor3dXf x_shuff = x.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // Call the 2D transposed convolution function
     Eigen::Tensor3dXf y_out =
@@ -518,7 +518,7 @@ Eigen::Tensor3dXf conv1d_tr_fused_gelu(const Eigen::Tensor3dXf &x,
 
     // Move end axis to the front
     Eigen::Tensor3dXf y_out_shuf =
-        y_out.shuffle(Eigen::array<int, 3>({2, 0, 1}));
+        y_out.shuffle(Eigen::array<Eigen::Index, 3>({2, 0, 1}));
 
     return y_out_shuf;
 }

@@ -28,8 +28,8 @@ Eigen::Tensor3dXf demucscpp::group_norm(const Eigen::Tensor3dXf &x,
             int end = (g + 1) * group_size;
 
             Eigen::Tensor3dXf slice =
-                x.slice(Eigen::array<int, 3>{i, start, 0},
-                        Eigen::array<int, 3>{1, group_size, width});
+                x.slice(Eigen::array<Eigen::Index, 3>{i, start, 0},
+                        Eigen::array<Eigen::Index, 3>{1, group_size, width});
             Eigen::Tensor<float, 0> mean_tensor = slice.mean();
             float mean = mean_tensor(0);
             float var = demucscpp::calculate_variance(slice, mean);
@@ -104,13 +104,13 @@ Eigen::Tensor3dXf demucscpp::glu(const Eigen::Tensor3dXf &x, const int dim)
 
     int split_size = x.dimension(dim) / 2;
 
-    Eigen::array<int, 3> start_indices = {0, 0, 0};
-    Eigen::array<int, 3> sizes = {(int)x.dimension(0), (int)x.dimension(1),
+    Eigen::array<Eigen::Index, 3> start_indices = {0, 0, 0};
+    Eigen::array<Eigen::Index, 3> sizes = {(int)x.dimension(0), (int)x.dimension(1),
                                   (int)x.dimension(2)};
     start_indices[dim] = split_size;
     sizes[dim] = split_size;
 
-    auto first_half = x.slice(Eigen::array<int, 3>({0, 0, 0}), sizes);
+    auto first_half = x.slice(Eigen::array<Eigen::Index, 3>({0, 0, 0}), sizes);
     auto second_half = x.slice(start_indices, sizes);
     auto sigmoid_second_half = second_half.unaryExpr(
         [](float v) { return 1.0f / (1.0f + std::exp(-v)); });
@@ -518,13 +518,13 @@ void demucscpp::common_encoder_layer(
 
     // Swap the first and last dimensions to get a tensor with dimensions (B, C,
     // T)
-    Eigen::array<int, 3> permute_dims_3 = {1, 2, 0};
+    Eigen::array<Eigen::Index, 3> permute_dims_3 = {1, 2, 0};
     Eigen::Tensor3dXf q_shuf = q.shuffle(permute_dims_3);
 
     // Normalize the output with norm_out/MyGroupNorm
     q = demucscpp::group_norm(q_shuf, norm_out_weight, norm_out_bias, 1, eps);
 
-    Eigen::array<int, 3> permute_dims_4 = {0, 2, 1};
+    Eigen::array<Eigen::Index, 3> permute_dims_4 = {0, 2, 1};
     q_shuf = q.shuffle(permute_dims_4);
 
     q = q_shuf;
@@ -955,7 +955,7 @@ void demucscpp_v3::apply_dconv_v3_encoder_4_5(
         lstm_out_0.data(), lstm_out_0.rows(), 1, lstm_out_0.cols());
 
     // swap dims from 0,1,2 to 1,2,0
-    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    Eigen::Tensor3dXf y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // then, localattn
     demucscpp_v3::local_attention(
@@ -1064,7 +1064,7 @@ void demucscpp_v3::apply_dconv_v3_encoder_4_5(
         lstm_out_0.data(), lstm_out_0.rows(), 1, lstm_out_0.cols());
 
     // swap dims from 0,1,2 to 1,2,0
-    y_shuff = y.shuffle(Eigen::array<int, 3>({1, 2, 0}));
+    y_shuff = y.shuffle(Eigen::array<Eigen::Index, 3>({1, 2, 0}));
 
     // then, localattn
     demucscpp_v3::local_attention(

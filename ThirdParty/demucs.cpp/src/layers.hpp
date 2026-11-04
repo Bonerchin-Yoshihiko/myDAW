@@ -149,8 +149,8 @@ inline Eigen::Tensor3dXf generalized_group_norm(const Eigen::Tensor3dXf &x,
         int end = (g + 1) * group_size;
 
         Eigen::Tensor3dXf slice =
-            x.slice(Eigen::array<int, 3>{0, start, 0},
-                    Eigen::array<int, 3>{freq, group_size, width});
+            x.slice(Eigen::array<Eigen::Index, 3>{0, start, 0},
+                    Eigen::array<Eigen::Index, 3>{freq, group_size, width});
 
         Eigen::Tensor<float, 0> mean_tensor = slice.mean();
         float mean = mean_tensor(0);
@@ -202,7 +202,7 @@ inline Eigen::Tensor3dXf group_norm_2(const Eigen::Tensor3dXf &x,
                                       const Eigen::Tensor1dXf &bias,
                                       int num_groups, float eps)
 {
-    Eigen::array<int, 3> shuffle_dims = {1, 0, 2}; // Shuffle dimensions
+    Eigen::array<Eigen::Index, 3> shuffle_dims = {1, 0, 2}; // Shuffle dimensions
 
     // Shuffle, apply group norm, and unshuffle
     Eigen::Tensor3dXf x_shuffled = x.shuffle(shuffle_dims);
@@ -215,7 +215,7 @@ inline Eigen::Tensor3dXf group_norm_fused_gelu_2(
     const Eigen::Tensor3dXf &x, const Eigen::Tensor1dXf &weight,
     const Eigen::Tensor1dXf &bias, int num_groups, float eps)
 {
-    Eigen::array<int, 3> shuffle_dims = {1, 0, 2}; // Shuffle dimensions
+    Eigen::array<Eigen::Index, 3> shuffle_dims = {1, 0, 2}; // Shuffle dimensions
 
     // Shuffle, apply group norm with GELU, and unshuffle
     Eigen::Tensor3dXf x_shuffled = x.shuffle(shuffle_dims);
