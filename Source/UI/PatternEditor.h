@@ -11,7 +11,7 @@ class PatternEditor : public Component,
                       private Timer
 {
 public:
-    PatternEditor (Session&, PluginWindowManager&, SampleEditorManager&);
+    PatternEditor (Session&, PluginWindowManager&, SampleEditorManager&, SamplerManager&);
     ~PatternEditor() override;
 
     void paint (Graphics&) override;
@@ -46,7 +46,8 @@ private:
     TextButton colourButton;
     Label barsLabel { {}, "Bars" }, signatureLabel { {}, "Time" }, slashLabel { {}, "/" }, stepsLabel { {}, "Steps/beat" };
     ComboBox barsBox, beatsBox, unitBox, stepsBox;
-    TextButton addSampleButton { "+ Sample" }, addInstrumentButton { "+ Instrument" }, backButton { "< Step grid" };
+    TextButton addSampleButton { "+ Sample" }, addInstrumentButton { "+ Instrument" }, samplerButton { "Sampler / AI" },
+               backButton { "< Step grid" };
     Label pianoRollLabel;
 
     Viewport viewport;

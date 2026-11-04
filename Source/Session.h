@@ -54,6 +54,9 @@ public:
     // ---- channels
     std::shared_ptr<Channel> addSampleChannel (const File&, String& error);
     std::shared_ptr<Channel> addPluginChannel (const PluginDescription&, String& error);
+    /** A new sample channel from audio in memory (a slice or an AI-separated stem). It is
+        written to "<project> Samples" when the project is saved. */
+    std::shared_ptr<Channel> addSampleChannelFromData (std::shared_ptr<SampleData>, const String& name);
     void removeChannel (int channelId);
     void moveChannel (int channelId, int delta);
     bool replaceSample (Channel&, const File&, String& error);

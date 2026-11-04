@@ -3,6 +3,7 @@
 #include "Session.h"
 #include "UI/PluginWindows.h"
 #include "UI/SampleEditor.h"
+#include "UI/Sampler.h"
 
 /** Owns the long-lived application objects, in the right construction/destruction order. */
 class AppCore
@@ -21,11 +22,14 @@ public:
         session = std::make_unique<Session> (engine, *plugins);
         session->onPluginWillBeDeleted = [this] (AudioPluginInstance* p) { pluginWindows.close (p); };
         sampleEditors = std::make_unique<SampleEditorManager> (*session, pluginWindows);
+        sampler = std::make_unique<SamplerManager> (*session);
+        sampleEditors->setSampler (sampler.get());
     }
 
     ~AppCore()
     {
         stopAudio();
+        sampler.reset();   // cancels a running AI separation
 
         if (sampleEditors != nullptr)
             sampleEditors->closeAll();
@@ -68,4 +72,5 @@ public:
     PluginWindowManager pluginWindows;
     std::unique_ptr<Session> session;
     std::unique_ptr<SampleEditorManager> sampleEditors;
+    std::unique_ptr<SamplerManager> sampler;
 };

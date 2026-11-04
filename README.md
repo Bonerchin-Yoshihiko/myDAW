@@ -13,6 +13,8 @@ C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux で動きます�
 | 打ち込んだ音を小節ごとに保存できる（小節の長さは自由） | 「パターン」= 1 小節以上のブロック。小節数・拍子（3/4, 5/4, 7/8 …）・グリッド分解能（3 にすると 3 連符）を自由に設定。パターン単体を `.mdpat` ファイルに保存して、別の曲で読み込める |
 | 保存した小節をパズルのように組み合わせて曲を作る | ソング画面のトラックにパターンをドラッグ＆ドロップ。ブロックは隣のブロックの端に磁石のように吸着するので、長さの違う小節もぴったり並ぶ |
 | VST を読み込める | VST3 のインストゥルメント（シンセ等）と エフェクト（チャンネルごと / マスター）を読み込み、プラグイン画面を開いて操作。設定はプロジェクトに保存される（macOS では Audio Unit も可） |
+| 取り込んだファイルから範囲を選んでサンプリング（1 つのファイルから複数） | **サンプラー**: 曲などのファイルを開いて、範囲を選ぶたびに新しいサンプル（チャンネル）にできる。自動スライス（アタック検出 / 等分 / 拍ごと）でまとめて切り出しも可 |
+| AI でボーカル・ギター・ドラム等を抽出（どれを抽出するか選べる） | **AI ステム分離**（Meta の Demucs v4 をパソコン上で実行）: ボーカル / ドラム / ベース / ギター / ピアノ / その他 / ボーカル以外（カラオケ）から選んで抽出。抽出した音からそのままサンプリングできる |
 | 取り込んだ音 1 つ単位で、VST エフェクトなどで音を編集 | **サンプルエディタ**: 波形を見ながら範囲を選んでトリム・削除・無音化・フェード・ノーマライズ・音量・リバース。VST エフェクトを試聴しながら掛けて、音そのものに書き込める（リバーブの余韻も含む）。Undo / Redo、元に戻す、WAV 書き出し |
 
 そのほか: BPM 変更、ミュート、音量 / パン、パターン再生 / ソング再生の切り替え、ソングのループ、WAV 書き出し、
@@ -53,6 +55,30 @@ C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux で動きます�
 
 > チャンネルの **...** → 「+ Add effect」は「再生するときにリアルタイムで掛かるエフェクト」（音そのものは変わらない）、
 > サンプルエディタは「音そのものを書き換える編集」です。用途に応じて使い分けてください。
+
+### 1.6 サンプラー（範囲を選んでサンプリング / AI で楽器ごとに分ける）
+パターンエディタ右上の **Sampler / AI** ボタン（または File メニュー、チャンネルの右クリック →「Open in Sampler」、
+サンプルエディタの「Sampler / AI stems」）で開きます。
+
+- **ファイルを開く**: 「Open audio file...」かウィンドウにドラッグ＆ドロップ（WAV / MP3 / AIFF / FLAC / OGG）。
+- **範囲を選んでサンプリング**: 波形をドラッグで選択 →「**Sample selection**」（Enter キー）。選ぶたびに新しいチャンネルが増えるので、
+  1 つのファイルから何個でもサンプルを作れます。サンプリングした範囲には番号付きのマーカーが付きます。
+- **自動スライス**: 「Auto-slice...」→ アタック（ドラムなどの打撃）で切る / 等分（2〜32）/ 拍ごと（曲の BPM で 1/4 拍〜1 小節）。
+  選択範囲があればその中だけを切ります。番号をクリックでそのスライスを選択、右クリックで削除など。
+  「**Sample all N slices**」で全部まとめてチャンネルにします。
+- **AI ステム分離**: 「**AI: Separate stems...**」
+  1. モデルを選ぶ: 6 ステム（ボーカル・ドラム・ベース・ギター・ピアノ・その他）または 4 ステム（ボーカル・ドラム・ベース・その他、ボーカルがよりきれい）。
+  2. 抽出するものにチェック（「No vocals」= ボーカル以外を全部まとめた伴奏 / カラオケ）。
+  3. 「Only the selected part」にすると選択範囲だけを分離（とても速い）。「Also add the stems ... as channels」で抽出結果をそのままチャンネルに追加。
+  4. 「Separate」。初回だけ AI モデル（6 ステム 53 MB / 4 ステム 81 MB）を自動でダウンロードします。
+  5. 終わると上の「SAMPLE FROM」にボーカル・ドラム…のボタンが並びます。押すとその楽器だけの音に切り替わり、
+     そこから範囲を選んでサンプリングできます（例: ドラムだけを取り出してスネア 1 発を切り出す）。
+- 分離は**パソコンの中で**行われます（音声はどこにも送信されません）。CPU で計算するため時間がかかります。
+  目安: 数秒の選択範囲なら 30 秒〜1 分、1 曲（3〜4 分）なら CPU とメモリに応じて数分〜十数分。分離中も他の作業ができ、ウィンドウを閉じても続きます。
+  1 つの処理に約 1.7 GB のメモリを使うので、メモリが多いほど並列に処理して速くなります。
+- モデルの自動ダウンロードができない環境では、ブラウザで
+  https://huggingface.co/datasets/Retrobear/demucs.cpp/tree/main から `ggml-model-htdemucs-6s-f16.bin`（または `-4s-`）を
+  ダウンロードして「Load model file...」で読み込めます。
 
 ### 2. 打ち込む（パターンを作る）
 - ステップグリッドのマスをクリックで ON / OFF、ドラッグで連続入力、右クリックで消去。
@@ -128,6 +154,7 @@ cmake -S . -B build -DMYDAW_BUILD_TESTS=ON
 cmake --build build --config Release
 ./build/MyDAWTests_artefacts/Release/MyDAWTests                        # エンジン・ファイル形式のテスト
 ./build/MyDAWTests_artefacts/Release/MyDAWTests Synth.vst3 Gain.vst3   # VST3 ホストのテストも実行
+MYDAW_TEST_DEMUCS_MODEL=/path/to/ggml-model-htdemucs-6s-f16.bin ./build/MyDAWTests_artefacts/Release/MyDAWTests  # AI 分離のテスト
 ```
 
 ## ソースの構成
@@ -141,10 +168,13 @@ Source/
   Audio/AudioEngine.*  リアルタイム再生・シーケンサ・WAV 書き出し
   Audio/Channel.*      サンプラー / VST インストゥルメント + インサートエフェクト
   Audio/SampleEditing.* 波形編集（トリム・フェード・ノーマライズ・エフェクトの書き込み等）
+  Audio/Slicing.*      自動スライス（アタック検出・等分・拍）と切り出し
+  AI/StemSeparation.*  AI ステム分離（demucs.cpp の呼び出し、並列処理、モデルのダウンロード）
   Audio/EffectChain.*  エフェクトプラグインの直列処理
   Audio/PluginManager.* VST3 のスキャン・読み込み
-  UI/                  画面（TransportBar, PatternList, StepGrid, PianoRoll, PatternEditor, SongEditor, SampleEditor ...）
+  UI/                  画面（TransportBar, PatternList, StepGrid, PianoRoll, PatternEditor, SongEditor, SampleEditor, Sampler ...）
 Tests/IntegrationTests.cpp
+ThirdParty/demucs.cpp/ Demucs v4 の C++ 推論ライブラリ（MIT、src のみ同梱）
 ```
 
 ## 現在の制限・今後のアイデア
@@ -156,6 +186,10 @@ Tests/IntegrationTests.cpp
   （その場合は再起動すると、そのプラグインを飛ばしてスキャンを続けられます）。
 
 ## ライセンスについて
+
+- AI ステム分離: [Demucs](https://github.com/facebookresearch/demucs)（Meta、MIT）、
+  [demucs.cpp](https://github.com/sevagh/demucs.cpp)（MIT、`ThirdParty/demucs.cpp` に同梱）、[Eigen](https://eigen.tuxfamily.org)（MPL2）を使っています。
+- 分離した音を作品に使うときは、元の曲の著作権に注意してください。
 
 JUCE は AGPLv3 / 商用のデュアルライセンスです。個人で使う分には問題ありませんが、
 このアプリを配布・販売する場合は JUCE のライセンス条件（AGPLv3 でソース公開、または商用ライセンス）に従ってください。

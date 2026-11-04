@@ -2,6 +2,7 @@
 #include "Audio/Channel.h"
 #include "Audio/SampleEditing.h"
 #include "UI/EffectRow.h"
+#include "UI/Sampler.h"
 
 namespace
 {
@@ -58,6 +59,23 @@ void WaveformView::setSelection (Range<int> r)
 
     if (onSelectionChanged)
         onSelectionChanged();
+}
+
+void WaveformView::setRegions (std::vector<Range<int>> r)
+{
+    regions = std::move (r);
+    repaint();
+}
+
+int WaveformView::findRegionAt (float x) const
+{
+    const auto frame = xToFrame (x);
+
+    for (int i = 0; i < (int) regions.size(); ++i)
+        if (frame >= regions[(size_t) i].getStart() && frame < regions[(size_t) i].getEnd())
+            return i;
+
+    return -1;
 }
 
 void WaveformView::setPlayPosition (double frame)
@@ -244,7 +262,39 @@ void WaveformView::paint (Graphics& g)
         g.drawVerticalLine (x, (float) ruler.getY() + 10.0f, (float) ruler.getBottom());
         g.setColour (Theme::dimText);
         g.drawText (String (t, step < 0.01 ? 3 : (step < 0.1 ? 2 : (step < 1.0 ? 1 : 0))) + "s",
-                    x + 3, ruler.getY(), 60, ruler.getHeight(), Justification::centredLeft);
+                    x + 3, ruler.getY(), 60, regions.empty() ? ruler.getHeight() : ruler.getHeight() / 2 + 1,
+                    Justification::centredLeft);
+    }
+
+    // slice markers
+    if (! regions.empty())
+    {
+        g.setFont (Theme::font (10.5f, true));
+
+        for (int i = 0; i < (int) regions.size(); ++i)
+        {
+            const auto& r = regions[(size_t) i];
+            const auto x1 = frameToX (r.getStart()), x2 = frameToX (r.getEnd());
+
+            if (x2 < 0.0f || x1 > (float) getWidth())
+                continue;
+
+            const auto c = Palette::get (i);
+            g.setColour (c.withAlpha (0.08f));
+            g.fillRect (Rectangle<float> (x1, (float) rulerHeight, x2 - x1, (float) (getHeight() - rulerHeight)));
+            g.setColour (c.withAlpha (0.9f));
+            g.drawVerticalLine (roundToInt (x1), (float) rulerHeight, (float) getHeight());
+
+            // numbered tag in the lower half of the ruler (the time labels stay readable above it)
+            auto tag = Rectangle<float> (x1, (float) rulerHeight * 0.5f, jmax (2.0f, x2 - x1), (float) rulerHeight * 0.5f).reduced (0.5f, 0.0f);
+            g.setColour (c.withAlpha (0.85f));
+            g.fillRoundedRectangle (tag, 2.0f);
+            g.setColour (Colours::black.withAlpha (0.85f));
+            g.setFont (Theme::font (9.5f, true));
+
+            if (tag.getWidth() > 12.0f)
+                g.drawText (String (i + 1), tag.toNearestInt().withTrimmedLeft (3), Justification::centredLeft, false);
+        }
     }
 
     // cursor and playhead
@@ -271,6 +321,23 @@ void WaveformView::mouseDown (const MouseEvent& e)
         return;
 
     const auto frame = clampFrame (xToFrame ((float) e.x));
+
+    // clicking a slice marker in the ruler selects (or, with right-click, edits) that slice
+    if (e.y < rulerHeight)
+    {
+        const auto index = findRegionAt ((float) e.x);
+
+        if (index >= 0)
+        {
+            setSelection (regions[(size_t) index]);
+            dragAnchor = regions[(size_t) index].getStart();
+
+            if (e.mods.isPopupMenu() && onRegionMenu)
+                onRegionMenu (index);
+
+            return;
+        }
+    }
 
     if (e.mods.isShiftDown())
     {
@@ -339,8 +406,8 @@ void WaveformView::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails&
 }
 
 //==============================================================================
-SampleEditor::SampleEditor (Session& s, PluginWindowManager& w, int id)
-    : session (s), pluginWindows (w), channelId (id)
+SampleEditor::SampleEditor (Session& s, PluginWindowManager& w, int id, SamplerManager* samplerManager)
+    : session (s), pluginWindows (w), sampler (samplerManager), channelId (id)
 {
     identity = session.getProject().findChannel (channelId);
 
@@ -394,6 +461,14 @@ SampleEditor::SampleEditor (Session& s, PluginWindowManager& w, int id)
         }
     };
     exportButton.onClick = [this] { exportWav(); };
+    samplerButton.setTooltip ("Open this sound in the Sampler: cut it into several samples, or split it into stems with AI");
+    samplerButton.setEnabled (sampler != nullptr);
+    samplerButton.onClick = [this]
+    {
+        if (auto* c = getChannel(); c != nullptr && c->sample != nullptr && sampler != nullptr)
+            sampler->openSample (c->sample, c->name);
+    };
+    addAndMakeVisible (samplerButton);
     playButton.onClick = [this] { togglePreview(); };
     selectAllButton.onClick = [this] { if (auto* c = getChannel(); c != nullptr && c->sample != nullptr) waveform.setSelection ({ 0, c->sample->getLength() }); };
     zoomInButton.onClick = [this] { waveform.zoom (1.5, waveform.getWidth() / 2); };
@@ -502,6 +577,8 @@ void SampleEditor::resized()
 
     auto header = r.removeFromTop (44).reduced (10, 7);
     exportButton.setBounds (header.removeFromRight (104));
+    header.removeFromRight (6);
+    samplerButton.setBounds (header.removeFromRight (140));
     header.removeFromRight (6);
     revertButton.setBounds (header.removeFromRight (130));
     header.removeFromRight (6);
@@ -933,7 +1010,7 @@ public:
         : DocumentWindow ("Sample Editor", Theme::background, DocumentWindow::allButtons),
           manager (m), channelId (id)
     {
-        auto* editor = new SampleEditor (m.session, m.pluginWindows, id);
+        auto* editor = new SampleEditor (m.session, m.pluginWindows, id, m.sampler);
         editor->onCloseRequested = [this] { requestClose(); };
         setUsingNativeTitleBar (true);
         setContentOwned (editor, true);

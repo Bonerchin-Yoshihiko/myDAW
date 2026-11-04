@@ -1,8 +1,9 @@
 #include "UI/PatternEditor.h"
 #include "Audio/Channel.h"
+#include "UI/Sampler.h"
 
-PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorManager& e)
-    : session (s), pluginWindows (w), grid (s, w, e), pianoRoll (s)
+PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorManager& e, SamplerManager& sampler)
+    : session (s), pluginWindows (w), grid (s, w, e, sampler), pianoRoll (s)
 {
     title.setText ("PATTERN", dontSendNotification);
     title.setFont (Theme::font (12.0f, true));
@@ -75,6 +76,10 @@ PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorMa
                               [this] (const FileChooser& fc) { addSamples (fc.getResults()); });
     };
     addInstrumentButton.onClick = [this] { showInstrumentMenu(); };
+    samplerButton.setTooltip ("Sampler: cut many samples out of one audio file, or split a song into vocals / drums / bass / guitar ... with AI");
+    samplerButton.setColour (TextButton::buttonColourId, Theme::accent.withAlpha (0.3f));
+    samplerButton.onClick = [&sampler] { sampler.show(); };
+    addAndMakeVisible (samplerButton);
     backButton.onClick = [this] { showStepGrid(); };
     addAndMakeVisible (addSampleButton);
     addAndMakeVisible (addInstrumentButton);
@@ -140,6 +145,8 @@ void PatternEditor::resized()
     stepsLabel.setBounds (header.removeFromLeft (76));
     stepsBox.setBounds (header.removeFromLeft (50));
 
+    samplerButton.setBounds (header.removeFromRight (100));
+    header.removeFromRight (6);
     addInstrumentButton.setBounds (header.removeFromRight (104));
     header.removeFromRight (6);
     addSampleButton.setBounds (header.removeFromRight (82));

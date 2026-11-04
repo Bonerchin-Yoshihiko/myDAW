@@ -9,6 +9,8 @@
 #include "Session.h"
 #include "Audio/Channel.h"
 #include "Audio/SampleEditing.h"
+#include "Audio/Slicing.h"
+#include "AI/StemSeparation.h"
 
 #include <iostream>
 
@@ -417,6 +419,175 @@ namespace
         }
     }
 
+
+    std::shared_ptr<SampleData> makeHits (double sampleRate, double seconds, std::initializer_list<double> hitTimes)
+    {
+        auto d = std::make_shared<SampleData>();
+        d->sampleRate = sampleRate;
+        d->buffer.setSize (2, (int) (seconds * sampleRate));
+        d->buffer.clear();
+        Random random (42);
+
+        for (auto t : hitTimes)
+        {
+            const auto start = (int) (t * sampleRate);
+
+            for (int i = 0; i < (int) (0.15 * sampleRate) && start + i < d->getLength(); ++i)
+            {
+                const auto v = (random.nextFloat() * 2.0f - 1.0f) * 0.8f * std::exp (-(float) i / (float) (0.03 * sampleRate));
+                d->buffer.setSample (0, start + i, v);
+                d->buffer.setSample (1, start + i, v * 0.9f);
+            }
+        }
+
+        return d;
+    }
+
+    void testSlicing (const File& dir)
+    {
+        std::cout << "Sampler: slicing and sampling" << std::endl;
+
+        auto hits = makeHits (44100.0, 2.0, { 0.0, 0.5, 1.0, 1.5 });
+        const auto slices = Slicing::atTransients (*hits, {}, 0.5f);
+        bool startsMatch = slices.size() == 4;
+
+        for (size_t i = 0; startsMatch && i < 4; ++i)
+            startsMatch = std::abs (slices[i].getStart() - (int) (i * 0.5 * 44100.0)) < 0.012 * 44100.0;
+
+        check (startsMatch, "transient slicing finds the 4 hits (" + String ((int) slices.size()) + " slices)");
+        check (slices.front().getStart() == 0 && slices.back().getEnd() == hits->getLength(), "slices cover the whole range");
+
+        const auto parts = Slicing::equalParts ({ 0, 1000 }, 4);
+        check (parts.size() == 4 && parts[1] == Range<int> (250, 500), "equal parts");
+
+        const auto beats = Slicing::everyBeats ({ 0, 88200 }, 44100.0, 120.0, 1.0);
+        check (beats.size() == 4 && beats[1].getStart() == 22050, "one slice per beat at 120 BPM");
+
+        const auto piece = Slicing::extract (*hits, { 22050, 44100 });
+        check (piece->getLength() == 22050 && approx (piece->buffer.getSample (0, 0), 0.0, 1e-9)
+                   && approx (piece->sampleRate, 44100.0, 1e-9),
+               "extracted slice has the right length and a click-free start");
+
+        // several samples from one file become channels and are saved with the project
+        const auto projectFile = dir.getChildFile ("slices.mydaw");
+
+        {
+            TestEnvironment env (dir);
+            auto& s = *env.session;
+
+            for (size_t i = 0; i < slices.size(); ++i)
+                s.addSampleChannelFromData (Slicing::extract (*hits, slices[i]), "Hit #" + String ((int) i + 1));
+
+            check (s.getProject().channels.size() == 4 && s.getProject().channels[2]->name == "Hit #3"
+                       && s.getProject().channels[2]->sample->getLength() == slices[2].getLength(),
+                   "each slice becomes its own channel");
+            check (s.saveProject (projectFile).wasOk(), "project with sliced samples saves");
+            check (s.getProject().channels[0]->sampleFile.existsAsFile()
+                       && s.getProject().channels[0]->sampleFile.isAChildOf (dir.getChildFile ("slices Samples")),
+                   "slices are written as WAV files next to the project");
+        }
+
+        {
+            TestEnvironment env (dir);
+            StringArray warnings;
+            env.session->loadProject (projectFile, warnings);
+            auto& channels = env.session->getProject().channels;
+            check (warnings.isEmpty() && channels.size() == 4 && channels[3]->sample != nullptr
+                       && channels[3]->sample->getLength() == slices[3].getLength(),
+                   "sliced samples load back");
+        }
+    }
+
+    void testStemSeparation (const File& dir, const File& modelFile)
+    {
+        std::cout << "AI stem separation (demucs.cpp)" << std::endl;
+        Stems::ModelType type;
+        check (Stems::isValidModelFile (modelFile, &type), "model file is recognised");
+        const auto& info = Stems::getModelInfo (type);
+
+        // 9 seconds of a little "song" at 48 kHz: hits + a bass tone + a high melody
+        auto mix = makeHits (48000.0, 9.0, { 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0 });
+
+        for (int i = 0; i < mix->getLength(); ++i)
+        {
+            const auto t = i / 48000.0;
+            const auto v = (float) (0.2 * std::sin (MathConstants<double>::twoPi * 55.0 * t)
+                                    + 0.1 * std::sin (MathConstants<double>::twoPi * 660.0 * t));
+            mix->buffer.addSample (0, i, v);
+            mix->buffer.addSample (1, i, v);
+        }
+
+        std::atomic<int> calls { 0 };
+        std::vector<Stems::Stem> stems;
+        const auto start = Time::getMillisecondCounterHiRes();
+        const auto result = Stems::separate (modelFile, *mix, {}, 2, stems, [&calls] (float, const String&) { ++calls; return true; });
+        const auto seconds = (Time::getMillisecondCounterHiRes() - start) * 0.001;
+        std::cout << "        (separated 9 s of audio in " << String (seconds, 1) << " s)" << std::endl;
+
+        check (result.wasOk(), "separation runs: " + result.getErrorMessage());
+        check ((int) stems.size() == info.stems.size(), "one output per stem (" + String ((int) stems.size()) + ")");
+
+        bool shapesOk = ! stems.empty(), finite = true, notSilent = true;
+        const auto expectedLength = (int) std::llround (mix->getLength() * 44100.0 / 48000.0);
+
+        for (auto& st : stems)
+        {
+            shapesOk = shapesOk && st.audio->getLength() == expectedLength && st.audio->buffer.getNumChannels() == 2
+                       && approx (st.audio->sampleRate, 44100.0, 1e-9);
+
+            for (int ch = 0; ch < 2; ++ch)
+                for (int i = 0; i < st.audio->getLength(); i += 97)
+                    finite = finite && std::isfinite (st.audio->buffer.getSample (ch, i));
+
+            notSilent = notSilent && st.audio->buffer.getMagnitude (0, 0, st.audio->getLength()) > 0.0f;
+        }
+
+        String shapes;
+
+        for (auto& st : stems)
+            shapes << st.id << ":" << st.audio->getLength() << "x" << st.audio->buffer.getNumChannels()
+                   << (st.audio->buffer.getMagnitude (0, 0, st.audio->getLength()) > 0.0f ? "" : "(silent)") << " ";
+
+        check (shapesOk, "stems are stereo 44.1 kHz with the input's duration (expected " + String (expectedLength) + ", got " + shapes + ")");
+        check (finite && notSilent, String ("stems contain valid audio") + (finite ? "" : " [non-finite values]") + (notSilent ? "" : " [silent stem]"));
+        check (calls.load() > 5, "progress is reported (" + String (calls.load()) + " updates)");
+
+        if (stems.size() >= 4)
+        {
+            auto instrumental = Stems::mixWithout (stems, "vocals");
+            const auto expected = stems[0].audio->buffer.getSample (0, 1000) + stems[1].audio->buffer.getSample (0, 1000)
+                                  + stems[2].audio->buffer.getSample (0, 1000)
+                                  + (stems.size() > 4 ? stems[4].audio->buffer.getSample (0, 1000) + stems[5].audio->buffer.getSample (0, 1000) : 0.0f);
+            check (approx (instrumental->buffer.getSample (0, 1000), expected, 1e-5), "\"No vocals\" is the sum of the other stems");
+        }
+
+        // separating only a selection
+        std::vector<Stems::Stem> part;
+        const auto partResult = Stems::separate (modelFile, *mix, { 48000, 48000 * 3 }, 1, part, {});
+        check (partResult.wasOk() && ! part.empty() && part[0].audio->getLength() == 88200,
+               "a selection can be separated on its own " + partResult.getErrorMessage()
+                   + (part.empty() ? String() : " (length " + String (part[0].audio->getLength()) + ")"));
+
+        // cancelling stops quickly
+        std::vector<Stems::Stem> cancelled;
+        const auto cancelStart = Time::getMillisecondCounterHiRes();
+        int n = 0;
+        const auto r = Stems::separate (modelFile, *mix, {}, 2, cancelled, [&n] (float, const String&) { return ++n < 3; });
+        check (r.failed() && r.getErrorMessage() == "Cancelled" && cancelled.empty()
+                   && Time::getMillisecondCounterHiRes() - cancelStart < seconds * 1000.0 * 0.8,
+               "separation can be cancelled");
+
+        // the background job used by the Sampler window
+        StemSeparationJob job (modelFile, mix, { 0, 48000 * 2 });
+        job.startThread();
+
+        while (! job.isFinished())
+            Thread::sleep (20);
+
+        check (job.getError().isEmpty() && (int) job.getStems().size() == info.stems.size(), "background separation job works");
+        ignoreUnused (dir);
+    }
+
     void testSampleEffects (const File& dir, const File& effectFile)
     {
         std::cout << "Sample editor: applying a VST3 effect to a sample" << std::endl;
@@ -580,6 +751,22 @@ int main (int argc, char* argv[])
     testFreeBarLengthsAndArrangement (dir);
     testFiles (dir);
     testSampleEditing (dir);
+    testSlicing (dir);
+
+    {
+        std::cout << "AI stem separation: parallel parts" << std::endl;
+        String details;
+        const auto ok = Stems::selfTestPartMerging (details);
+        check (ok, "parts are split, placed and cross-faded exactly (" + details.trim() + ")");
+    }
+
+    // AI stem separation needs a model file: MYDAW_TEST_DEMUCS_MODEL=/path/to/ggml-model-htdemucs-6s-f16.bin
+    const auto modelPath = SystemStats::getEnvironmentVariable ("MYDAW_TEST_DEMUCS_MODEL", {});
+
+    if (File::isAbsolutePath (modelPath) && File (modelPath).existsAsFile())
+        testStemSeparation (dir, File (modelPath));
+    else
+        std::cout << "(AI stem separation tests skipped: set MYDAW_TEST_DEMUCS_MODEL to a model file)" << std::endl;
 
     if (argc >= 3)
     {

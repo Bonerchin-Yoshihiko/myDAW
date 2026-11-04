@@ -12,7 +12,7 @@ class StepGrid : public Component,
                  private Timer
 {
 public:
-    StepGrid (Session&, PluginWindowManager&, SampleEditorManager&);
+    StepGrid (Session&, PluginWindowManager&, SampleEditorManager&, SamplerManager&);
     ~StepGrid() override;
 
     static constexpr int headerWidth = 276;
@@ -45,6 +45,7 @@ private:
     Session& session;
     PluginWindowManager& pluginWindows;
     SampleEditorManager& sampleEditors;
+    SamplerManager& sampler;
     OwnedArray<RowHeader> rows;
     std::vector<int> rowChannelIds;
 

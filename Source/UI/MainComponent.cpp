@@ -3,7 +3,7 @@
 
 MainComponent::MainComponent (AppCore& c)
     : core (c), session (*c.session), transport (session), patternList (session),
-      songEditor (session), patternEditor (session, c.pluginWindows, *c.sampleEditors)
+      songEditor (session), patternEditor (session, c.pluginWindows, *c.sampleEditors, *c.sampler)
 {
     addAndMakeVisible (transport);
     addAndMakeVisible (patternList);
@@ -280,6 +280,8 @@ void MainComponent::showFileMenu (Component& target)
     m.addItem ("Save as...", [this] { saveProjectAs(); });
     m.addSeparator();
     m.addItem ("Export song as WAV...   Ctrl+E", [this] { exportWav(); });
+    m.addSeparator();
+    m.addItem ("Sampler / AI stem separation...", [this] { core.sampler->show(); });
     m.addSeparator();
     m.addItem ("Audio settings...", [this] { showAudioSettings(); });
     m.addItem ("Plug-in manager...", [this] { showPluginManager(); });

@@ -560,6 +560,25 @@ std::shared_ptr<Channel> Session::addSampleChannel (const File& file, String& er
     return c;
 }
 
+std::shared_ptr<Channel> Session::addSampleChannelFromData (std::shared_ptr<SampleData> data, const String& name)
+{
+    if (data == nullptr || data->getLength() <= 0)
+        return {};
+
+    auto c = std::make_shared<Channel> (project.createId(), Channel::Type::sample);
+    c->name = name.isNotEmpty() ? name : String ("Sample");
+    c->colour = Palette::get (nextChannelColourIndex (project));
+    c->sample = std::move (data);
+    c->sampleModified = true;   // only in memory until the project is saved
+    engine.prepareNewChannel (*c);
+
+    project.channels.push_back (c);
+    pushChannelsToEngine();
+    markDirty();
+    notify (channelsChanged);
+    return c;
+}
+
 std::shared_ptr<Channel> Session::addPluginChannel (const PluginDescription& desc, String& error)
 {
     auto instance = plugins.createInstance (desc, engine.getSampleRate(), engine.getBlockSize(), error);

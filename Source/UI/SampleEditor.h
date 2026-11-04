@@ -4,6 +4,8 @@
 #include "UI/PluginWindows.h"
 #include "UI/Theme.h"
 
+class SamplerManager;
+
 /** Draws a sample's waveform and lets the user select a range, zoom and scroll. */
 class WaveformView : public Component
 {
@@ -22,6 +24,11 @@ public:
     void zoomToFit();
 
     std::function<void()> onSelectionChanged, onViewChanged;
+
+    /** Numbered slice markers drawn over the waveform (frames). Clicking a marker in the ruler
+        selects that slice; right-clicking calls onRegionMenu. */
+    void setRegions (std::vector<Range<int>>);
+    std::function<void (int index)> onRegionMenu;
 
     void paint (Graphics&) override;
     void resized() override                    { cacheValid = false; }
@@ -49,6 +56,9 @@ private:
 
     std::vector<float> mins[2], maxs[2];
     bool cacheValid = false;
+    std::vector<Range<int>> regions;
+
+    int findRegionAt (float x) const;
 };
 
 //==============================================================================
@@ -60,7 +70,7 @@ class SampleEditor : public Component,
                      private Timer
 {
 public:
-    SampleEditor (Session&, PluginWindowManager&, int channelId);
+    SampleEditor (Session&, PluginWindowManager&, int channelId, SamplerManager* sampler = nullptr);
     ~SampleEditor() override;
 
     std::function<void()> onCloseRequested;
@@ -95,12 +105,14 @@ private:
 
     Session& session;
     PluginWindowManager& pluginWindows;
+    SamplerManager* sampler;
     const int channelId;
     const Channel* identity = nullptr;
 
     Label title, infoLabel, selectionLabel, statusLabel, editLabel { {}, "EDIT" }, effectsLabel { {}, "VST EFFECTS" },
           effectsHint, tailLabel { {}, "Tail" };
-    TextButton undoButton { "Undo" }, redoButton { "Redo" }, revertButton { "Revert to original" }, exportButton { "Export WAV..." };
+    TextButton undoButton { "Undo" }, redoButton { "Redo" }, revertButton { "Revert to original" }, exportButton { "Export WAV..." },
+               samplerButton { "Sampler / AI stems" };
     IconButton playButton { "Play", IconButton::Icon::play };
     ToggleButton loopToggle { "Loop" }, hearEffectsToggle { "Hear effects" };
     TextButton selectAllButton { "Select all" }, zoomOutButton { "-" }, zoomInButton { "+" }, fitButton { "Fit" };
@@ -124,6 +136,8 @@ public:
     SampleEditorManager (Session&, PluginWindowManager&);
     ~SampleEditorManager();
 
+    void setSampler (SamplerManager* s) noexcept { sampler = s; }
+
     void open (int channelId);
     void close (int channelId);
     void closeAll();
@@ -132,5 +146,6 @@ private:
     class Window;
     Session& session;
     PluginWindowManager& pluginWindows;
+    SamplerManager* sampler = nullptr;
     std::vector<std::unique_ptr<Window>> windows;
 };

@@ -1,5 +1,6 @@
 #include "UI/StepGrid.h"
 #include "UI/ChannelSettings.h"
+#include "UI/Sampler.h"
 
 //==============================================================================
 class StepGrid::RowHeader : public Component
@@ -165,8 +166,8 @@ public:
 };
 
 //==============================================================================
-StepGrid::StepGrid (Session& s, PluginWindowManager& w, SampleEditorManager& e)
-    : session (s), pluginWindows (w), sampleEditors (e)
+StepGrid::StepGrid (Session& s, PluginWindowManager& w, SampleEditorManager& e, SamplerManager& sm)
+    : session (s), pluginWindows (w), sampleEditors (e), sampler (sm)
 {
     session.addListener (this);
     rebuildRows();
@@ -519,8 +520,15 @@ void StepGrid::showChannelMenu (int channelId, Component& target)
     });
 
     if (c->isSample())
+    {
         m.addItem ("Edit sample (waveform, VST effects)...", c->sample != nullptr, false,
                    [this, channelId] { sampleEditors.open (channelId); });
+        m.addItem ("Open in Sampler (cut into samples, AI stems)...", c->sample != nullptr, false, [this, channelId]
+        {
+            if (auto* ch = session.getProject().findChannel (channelId); ch != nullptr && ch->sample != nullptr)
+                sampler.openSample (ch->sample, ch->name);
+        });
+    }
 
     if (c->isPlugin())
         m.addItem ("Open plug-in window", c->plugin != nullptr, false, [this, channelId]
