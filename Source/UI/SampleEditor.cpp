@@ -3,6 +3,7 @@
 #include "Audio/SampleEditing.h"
 #include "UI/EffectRow.h"
 #include "UI/Sampler.h"
+#include "UI/WindowPlacement.h"
 
 namespace
 {
@@ -1015,13 +1016,14 @@ public:
         setUsingNativeTitleBar (true);
         setContentOwned (editor, true);
         setResizable (true, false);
-        setResizeLimits (720, 480, 4000, 3000);
-        centreWithSize (getWidth(), getHeight());
+        setResizeLimits (700, 460, 4000, 3000);
+        WindowPlacement::fitOnScreen (*this, getWidth(), getHeight());
 
         if (auto* c = m.session.getProject().findChannel (id))
             setName ("Sample Editor - " + c->name);
 
         setVisible (true);
+        WindowPlacement::keepOnScreenAfterShowing (*this);
         editor->grabKeyboardFocus();
     }
 

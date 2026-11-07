@@ -37,4 +37,5 @@ private:
     Slider masterSlider;
     LevelMeter meter;
     TextButton masterFxButton { "Master FX" }, pluginsButton { "Plug-ins" }, audioButton { "Audio" }, exportButton { "Export WAV" };
+    bool showLogo = true;
 };

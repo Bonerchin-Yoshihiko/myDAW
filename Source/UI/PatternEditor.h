@@ -54,6 +54,7 @@ private:
     StepGrid grid;
     PianoRoll pianoRoll;
     bool showingPianoRoll = false;
+    int headerHeight = 40;   // 80 when the header needs two rows (narrow windows)
     bool dragHighlight = false;
 
     std::unique_ptr<FileChooser> chooser;

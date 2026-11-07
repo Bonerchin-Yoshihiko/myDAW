@@ -109,9 +109,9 @@ void PatternEditor::paint (Graphics& g)
 {
     g.fillAll (Theme::background);
     g.setColour (Theme::panel);
-    g.fillRect (getLocalBounds().removeFromTop (40));
+    g.fillRect (getLocalBounds().removeFromTop (headerHeight));
     g.setColour (Theme::outline);
-    g.drawHorizontalLine (40, 0.0f, (float) getWidth());
+    g.drawHorizontalLine (headerHeight, 0.0f, (float) getWidth());
 }
 
 void PatternEditor::paintOverChildren (Graphics& g)
@@ -127,13 +127,21 @@ void PatternEditor::paintOverChildren (Graphics& g)
 
 void PatternEditor::resized()
 {
+    // the pattern settings need ~640 px, the buttons ~310 px (+ ~240 px in piano-roll mode);
+    // when they do not fit side by side, the buttons get a second row
+    const auto leftWidth = 640, rightWidth = 310 + (showingPianoRoll ? 240 : 0);
+    const auto twoRows = getWidth() < leftWidth + rightWidth + 16;
+    headerHeight = twoRows ? 76 : 40;
+
     auto r = getLocalBounds();
-    auto header = r.removeFromTop (40).reduced (8, 6);
+    auto headerArea = r.removeFromTop (headerHeight);
+    auto header = headerArea.removeFromTop (40).reduced (8, 6);
+    auto buttonsRow = twoRows ? headerArea.reduced (8, 2).withTrimmedBottom (4) : header;
 
     title.setBounds (header.removeFromLeft (64));
     colourButton.setBounds (header.removeFromLeft (22).reduced (0, 3));
     header.removeFromLeft (6);
-    nameEditor.setBounds (header.removeFromLeft (150));
+    nameEditor.setBounds (header.removeFromLeft (jlimit (90, 150, header.getWidth() - 470)));
     header.removeFromLeft (8);
 
     barsLabel.setBounds (header.removeFromLeft (36));
@@ -145,20 +153,35 @@ void PatternEditor::resized()
     stepsLabel.setBounds (header.removeFromLeft (76));
     stepsBox.setBounds (header.removeFromLeft (50));
 
-    samplerButton.setBounds (header.removeFromRight (100));
-    header.removeFromRight (6);
-    addInstrumentButton.setBounds (header.removeFromRight (104));
-    header.removeFromRight (6);
-    addSampleButton.setBounds (header.removeFromRight (82));
-    header.removeFromRight (10);
-    backButton.setBounds (header.removeFromRight (96));
-    header.removeFromRight (6);
-    pianoRollLabel.setBounds (header.removeFromRight (jmax (0, header.getWidth() - 10)));
+    if (! twoRows)
+        buttonsRow = header;   // what is left of the single row
+
+    samplerButton.setBounds (buttonsRow.removeFromRight (100));
+    buttonsRow.removeFromRight (6);
+    addInstrumentButton.setBounds (buttonsRow.removeFromRight (104));
+    buttonsRow.removeFromRight (6);
+    addSampleButton.setBounds (buttonsRow.removeFromRight (82));
+    buttonsRow.removeFromRight (10);
+
+    if (twoRows)
+    {
+        // piano-roll controls on the left of the second row
+        backButton.setBounds (buttonsRow.removeFromLeft (96));
+        buttonsRow.removeFromLeft (10);
+        pianoRollLabel.setBounds (buttonsRow);
+    }
+    else
+    {
+        backButton.setBounds (buttonsRow.removeFromRight (96));
+        buttonsRow.removeFromRight (6);
+        pianoRollLabel.setBounds (buttonsRow.removeFromRight (jmax (0, buttonsRow.getWidth() - 10)));
+    }
 
     viewport.setBounds (r);
     const auto visibleWidth = viewport.getMaximumVisibleWidth();
     grid.updateLayout (visibleWidth);
     pianoRoll.updateLayout (visibleWidth);
+    repaint();
 }
 
 void PatternEditor::sessionChanged (int changes)
@@ -222,6 +245,7 @@ void PatternEditor::applyLengthChange()
 void PatternEditor::showPianoRoll (int channelId)
 {
     showingPianoRoll = true;
+    resized();   // the header may need a second row for the piano-roll controls
     pianoRoll.setChannel (channelId);
     viewport.setViewedComponent (&pianoRoll, false);
     pianoRoll.updateLayout (viewport.getMaximumVisibleWidth());
@@ -237,6 +261,7 @@ void PatternEditor::showPianoRoll (int channelId)
 void PatternEditor::showStepGrid()
 {
     showingPianoRoll = false;
+    resized();
     viewport.setViewedComponent (&grid, false);
     grid.updateLayout (viewport.getMaximumVisibleWidth());
     backButton.setVisible (false);

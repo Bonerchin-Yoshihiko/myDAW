@@ -68,6 +68,7 @@ set(MYDAW_CORE_SOURCES
 
 set(MYDAW_UI_SOURCES
     Source/UI/Theme.cpp
+    Source/UI/WindowPlacement.cpp
     Source/UI/PluginWindows.cpp
     Source/UI/TransportBar.cpp
     Source/UI/PatternList.cpp

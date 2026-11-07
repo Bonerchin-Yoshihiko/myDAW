@@ -1,24 +1,35 @@
 #include "UI/MainComponent.h"
+#include "UI/WindowPlacement.h"
 
 #include <iostream>
 
 class MainWindow : public DocumentWindow
 {
 public:
-    explicit MainWindow (AppCore& core)
-        : DocumentWindow ("myDAW", Theme::background, DocumentWindow::allButtons)
+    explicit MainWindow (AppCore& c)
+        : DocumentWindow ("myDAW", Theme::background, DocumentWindow::allButtons), core (c)
     {
         setUsingNativeTitleBar (true);
         content = new MainComponent (core);
         setContentOwned (content, true);
-        setResizable (true, true);
-        setResizeLimits (980, 620, 10000, 10000);
-        centreWithSize (getWidth(), getHeight());
+        setResizable (true, false);
+        setResizeLimits (860, 560, 10000, 10000);
+
+        // Fit the window (title bar included) on the screen: on a small or scaled display
+        // (e.g. 150 % on a 1920x1080 laptop) the preferred size would not fit.
+        if (! WindowPlacement::restoreState (*this, core.properties.getUserSettings()->getValue ("mainWindowBounds")))
+            WindowPlacement::fitOnScreen (*this, 1360, 860);
 
         content->onTitleChanged = [this] { setName (content->getWindowTitle()); };
         setName (content->getWindowTitle());
         setVisible (true);
+        WindowPlacement::keepOnScreenAfterShowing (*this);
         content->grabKeyboardFocus();
+    }
+
+    ~MainWindow() override
+    {
+        core.properties.getUserSettings()->setValue ("mainWindowBounds", WindowPlacement::getStateString (*this));
     }
 
     void closeButtonPressed() override
@@ -26,6 +37,7 @@ public:
         JUCEApplication::getInstance()->systemRequestedQuit();
     }
 
+    AppCore& core;
     MainComponent* content = nullptr;
 };
 

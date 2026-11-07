@@ -44,7 +44,7 @@ void MainComponent::resized()
 {
     auto r = getLocalBounds();
     transport.setBounds (r.removeFromTop (48));
-    patternList.setBounds (r.removeFromLeft (230));
+    patternList.setBounds (r.removeFromLeft (jlimit (170, 230, getWidth() / 6)));
 
     Component* comps[] = { &songEditor, &splitter, &patternEditor };
     layout.layOutComponents (comps, 3, r.getX(), r.getY(), r.getWidth(), r.getHeight(), true, true);

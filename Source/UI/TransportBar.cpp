@@ -75,44 +75,77 @@ void TransportBar::paint (Graphics& g)
     g.setColour (Theme::outline);
     g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 
-    g.setColour (Theme::accent);
-    g.setFont (Theme::font (19.0f, true));
-    g.drawText ("myDAW", 12, 0, 80, getHeight(), Justification::centredLeft);
+    if (showLogo)
+    {
+        g.setColour (Theme::accent);
+        g.setFont (Theme::font (19.0f, true));
+        g.drawText ("myDAW", 12, 0, 80, getHeight(), Justification::centredLeft);
+    }
 }
 
 void TransportBar::resized()
 {
+    // On narrow windows (small or scaled screens) drop what is also reachable elsewhere:
+    // Export / Audio / Plug-ins are in the File menu.
+    const auto width = getWidth();
+    const auto full = width >= 1270;
+    const auto medium = width >= 1040;
+    const auto compact = width >= 900;
+
+    showLogo = medium;
+    exportButton.setVisible (full);
+    audioButton.setVisible (full);
+    pluginsButton.setVisible (full);
+    masterLabel.setVisible (medium);
+    bpmLabel.setVisible (compact);
+    meter.setVisible (compact);
+
     auto r = getLocalBounds().reduced (6, 7);
-    r.removeFromLeft (84);
+    r.removeFromLeft (showLogo ? 84 : 4);
 
     fileButton.setBounds (r.removeFromLeft (56));
-    r.removeFromLeft (14);
+    r.removeFromLeft (compact ? 14 : 8);
     playButton.setBounds (r.removeFromLeft (38));
     r.removeFromLeft (4);
     stopButton.setBounds (r.removeFromLeft (38));
     r.removeFromLeft (4);
     loopButton.setBounds (r.removeFromLeft (38));
-    r.removeFromLeft (10);
+    r.removeFromLeft (compact ? 10 : 6);
     patternModeButton.setBounds (r.removeFromLeft (78));
     songModeButton.setBounds (r.removeFromLeft (62));
-    r.removeFromLeft (12);
-    bpmLabel.setBounds (r.removeFromLeft (34));
-    bpmSlider.setBounds (r.removeFromLeft (70));
-    r.removeFromLeft (10);
-    positionLabel.setBounds (r.removeFromLeft (120));
+    r.removeFromLeft (compact ? 12 : 6);
 
-    exportButton.setBounds (r.removeFromRight (90));
-    r.removeFromRight (4);
-    audioButton.setBounds (r.removeFromRight (56));
-    r.removeFromRight (4);
-    pluginsButton.setBounds (r.removeFromRight (70));
-    r.removeFromRight (4);
+    if (compact)
+        bpmLabel.setBounds (r.removeFromLeft (34));
+
+    bpmSlider.setBounds (r.removeFromLeft (64));
+    r.removeFromLeft (compact ? 10 : 6);
+    positionLabel.setBounds (r.removeFromLeft (compact ? 120 : 100));
+
+    if (full)
+    {
+        exportButton.setBounds (r.removeFromRight (90));
+        r.removeFromRight (4);
+        audioButton.setBounds (r.removeFromRight (56));
+        r.removeFromRight (4);
+        pluginsButton.setBounds (r.removeFromRight (70));
+        r.removeFromRight (4);
+    }
+
     masterFxButton.setBounds (r.removeFromRight (80));
-    r.removeFromRight (10);
-    meter.setBounds (r.removeFromRight (90).reduced (0, 4));
-    r.removeFromRight (4);
-    masterSlider.setBounds (r.removeFromRight (jlimit (60, 120, r.getWidth() - 60)));
-    masterLabel.setBounds (r.removeFromRight (48));
+    r.removeFromRight (compact ? 10 : 6);
+
+    if (compact)
+    {
+        meter.setBounds (r.removeFromRight (medium ? 90 : 56).reduced (0, 4));
+        r.removeFromRight (4);
+    }
+
+    const auto sliderWidth = jlimit (40, 120, r.getWidth() - (medium ? 52 : 4));
+    masterSlider.setBounds (r.removeFromRight (sliderWidth));
+
+    if (medium)
+        masterLabel.setBounds (r.removeFromRight (48));
 }
 
 void TransportBar::sessionChanged (int changes)

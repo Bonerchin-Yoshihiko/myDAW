@@ -1,5 +1,6 @@
 #include "UI/PluginWindows.h"
 #include "UI/Theme.h"
+#include "UI/WindowPlacement.h"
 
 class PluginWindowManager::Window : public DocumentWindow
 {
@@ -16,8 +17,14 @@ public:
         setUsingNativeTitleBar (true);
         setContentOwned (editor, true);
         setResizable (editor->isResizable(), false);
-        setTopLeftPosition (120 + (int) manager.windows.size() * 30, 120 + (int) manager.windows.size() * 30);
+
+        // on screen, slightly offset from other plug-in windows
+        WindowPlacement::fitOnScreen (*this, getWidth(), getHeight());
+        const auto offset = ((int) manager.windows.size() % 6) * 28;
+        setTopLeftPosition (getX() + offset, getY() + offset);
+        WindowPlacement::keepOnScreen (*this);
         setVisible (true);
+        WindowPlacement::keepOnScreenAfterShowing (*this);
     }
 
     ~Window() override
@@ -75,8 +82,9 @@ PluginManagerWindow::PluginManagerWindow (AudioPluginFormatManager& formats, Kno
     setUsingNativeTitleBar (true);
     setContentOwned (content, true);
     setResizable (true, false);
-    centreWithSize (760, 520);
+    WindowPlacement::fitOnScreen (*this, 760, 520);
     setVisible (true);
+    WindowPlacement::keepOnScreenAfterShowing (*this);
 }
 
 void PluginManagerWindow::closeButtonPressed()

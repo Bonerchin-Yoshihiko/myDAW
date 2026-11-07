@@ -173,6 +173,7 @@ void SongEditor::resized()
     zoomInButton.setBounds (bar.removeFromLeft (24));
     bar.removeFromLeft (14);
     hintLabel.setBounds (bar);
+    hintLabel.setVisible (bar.getWidth() >= 320);   // too squashed to read on narrow windows
 
     const auto lanes = getLanesArea();
     hScroll.setBounds (lanes.getX(), lanes.getBottom(), lanes.getWidth(), scrollBarSize);

@@ -2,6 +2,7 @@
 #include "Audio/Channel.h"
 #include "Audio/SampleEditing.h"
 #include "Audio/Slicing.h"
+#include "UI/WindowPlacement.h"
 
 namespace
 {
@@ -504,11 +505,19 @@ void SamplerComponent::resized()
     auto sourceRow = r.removeFromTop (42).reduced (10, 6);
     separateButton.setBounds (sourceRow.removeFromRight (180));
     sourceRow.removeFromRight (10);
-    sourceLabel.setBounds (sourceRow.removeFromLeft (96));
+
+    // drop the label when the stem buttons need the room (narrow windows)
+    const auto numButtons = jmax (1, sourceButtons.size());
+    sourceLabel.setVisible (sourceRow.getWidth() - 96 >= numButtons * 64);
+
+    if (sourceLabel.isVisible())
+        sourceLabel.setBounds (sourceRow.removeFromLeft (96));
+
+    const auto buttonWidth = jmin (96, (sourceRow.getWidth() - (numButtons - 1) * 4) / numButtons);
 
     for (auto* b : sourceButtons)
     {
-        b->setBounds (sourceRow.removeFromLeft (jmin (96, jmax (60, sourceRow.getWidth() / jmax (1, sourceButtons.size())))));
+        b->setBounds (sourceRow.removeFromLeft (buttonWidth));
         sourceRow.removeFromLeft (4);
     }
 
@@ -526,8 +535,12 @@ void SamplerComponent::resized()
     sampleAllButton.setBounds (slicesRow.removeFromRight (170));
     slicesRow.removeFromRight (6);
     sampleSelectionButton.setBounds (slicesRow.removeFromRight (150));
-    slicesLabel.setBounds (slicesRow.removeFromLeft (52));
-    addSliceButton.setBounds (slicesRow.removeFromLeft (160));
+    slicesLabel.setVisible (slicesRow.getWidth() >= 440);
+
+    if (slicesLabel.isVisible())
+        slicesLabel.setBounds (slicesRow.removeFromLeft (52));
+
+    addSliceButton.setBounds (slicesRow.removeFromLeft (jmin (160, slicesRow.getWidth() / 2 - 90)));
     slicesRow.removeFromLeft (6);
     autoSliceButton.setBounds (slicesRow.removeFromLeft (100));
     slicesRow.removeFromLeft (6);
@@ -1014,8 +1027,8 @@ public:
         setUsingNativeTitleBar (true);
         setContentOwned (content, true);
         setResizable (true, false);
-        setResizeLimits (800, 520, 4000, 3000);
-        centreWithSize (getWidth(), getHeight());
+        setResizeLimits (760, 460, 4000, 3000);
+        WindowPlacement::fitOnScreen (*this, getWidth(), getHeight());
     }
 
     void closeButtonPressed() override
@@ -1045,7 +1058,12 @@ SamplerManager::Window& SamplerManager::getWindow()
 void SamplerManager::show()
 {
     auto& w = getWindow();
+    const auto firstTime = ! w.isVisible();
     w.setVisible (true);
+
+    if (firstTime)
+        WindowPlacement::keepOnScreenAfterShowing (w);
+
     w.toFront (true);
     w.component->grabKeyboardFocus();
 }
