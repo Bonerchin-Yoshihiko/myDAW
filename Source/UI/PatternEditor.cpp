@@ -79,7 +79,10 @@ PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorMa
         request.multipleFiles = true;
         request.copyInto = AppFiles::getDocumentsFolder().getChildFile ("Imported Audio");
 
-        AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<PatternEditor> (this)] (const Array<File>& files)
+        // (a SafePointer made outside the inner lambda: MSVC misreads `this` in nested init-captures)
+        SafePointer<PatternEditor> safe (this);
+
+        AppFiles::chooseFilesToOpen (chooser, request, [safe] (const Array<File>& files)
         {
             if (safe != nullptr)
                 safe->addSamples (files);

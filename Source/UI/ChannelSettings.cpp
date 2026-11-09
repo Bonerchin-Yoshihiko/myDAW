@@ -120,7 +120,10 @@ ChannelSettings::ChannelSettings (Session& s, PluginWindowManager& w, int id, Sa
                 request.wildcard = SampleData::getWildcard();
                 request.copyInto = AppFiles::getDocumentsFolder().getChildFile ("Imported Audio");
 
-                AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<ChannelSettings> (this)] (const Array<File>& files)
+                // (a SafePointer made outside the inner lambda: MSVC misreads `this` in nested init-captures)
+                SafePointer<ChannelSettings> safe (this);
+
+                AppFiles::chooseFilesToOpen (chooser, request, [safe] (const Array<File>& files)
                 {
                     auto* chan = safe != nullptr ? safe->getChannel() : nullptr;
 
