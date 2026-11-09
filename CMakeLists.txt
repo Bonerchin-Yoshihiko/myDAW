@@ -136,7 +136,8 @@ juce_add_gui_app(MyDAW
     FILE_SHARING_ENABLED TRUE
     DOCUMENT_BROWSER_ENABLED TRUE
     STATUS_BAR_HIDDEN TRUE
-    REQUIRES_FULL_SCREEN TRUE)
+    REQUIRES_FULL_SCREEN TRUE
+    PLIST_TO_MERGE "<plist><dict><key>LSSupportsOpeningDocumentsInPlace</key><true/></dict></plist>")
 
 target_sources(MyDAW PRIVATE ${MYDAW_CORE_SOURCES} ${MYDAW_UI_SOURCES} Source/Main.cpp)
 

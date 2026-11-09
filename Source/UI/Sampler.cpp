@@ -1032,10 +1032,10 @@ void SamplerComponent::loadModelFromFile()
 class SamplerManager::Window : public AppWindow
 {
 public:
-    explicit Window (Session& session)
+    explicit Window (Session& s)
         : AppWindow ("Sampler", DocumentWindow::allButtons)
     {
-        auto* content = new SamplerComponent (session);
+        auto* content = new SamplerComponent (s);
         component = content;
         content->onTitleChanged = [this] (const String& t) { setName (t); };
         setScrollableContent (content, 700, 420);   // phones: scroll to reach everything

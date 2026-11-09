@@ -115,7 +115,7 @@ int PianoRoll::findNoteAt (Point<int> pos, bool& onRightEdge) const
         if (r.contains (pos))
         {
             // a finger needs a wider grip on the note's end
-            const auto grip = Desktop::getInstance().getMainMouseSource().isTouch() ? 14 : 7;
+            const auto grip = touchInput ? 14 : 7;
             onRightEdge = pos.x >= r.getRight() - jmin (grip, r.getWidth() / 3);
             return i;
         }
@@ -274,6 +274,7 @@ void PianoRoll::mouseDown (const MouseEvent& e)
         return;
 
     const auto touch = Touch::isTouch (e);
+    touchInput = touch;
 
     if (e.x < keyWidth)
     {

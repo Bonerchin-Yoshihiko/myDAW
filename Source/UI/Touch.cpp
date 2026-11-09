@@ -2,7 +2,10 @@
 
 PopupMenu::Options Touch::menuAtPointer (PopupMenu::Options options)
 {
-    const auto source = Desktop::getInstance().getMainMouseSource();
+    // the finger (or mouse button) that is down, else the one used last
+    auto& desktop = Desktop::getInstance();
+    const auto* pressed = desktop.getDraggingMouseSource (0);
+    const auto source = pressed != nullptr ? *pressed : desktop.getMainMouseSource();
 
     if (! source.isTouch())
         return options.withMousePosition();

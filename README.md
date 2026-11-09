@@ -1,7 +1,7 @@
 # myDAW
 
 パターン（小節のブロック）を作って、パズルのように並べて曲を作るデスクトップ DAW です。
-C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux で動きます。
+C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux と **iPhone / iPad** で動きます（[iPhone / iPad で使う](#iphone--ipad-で使う)）。
 
 ![myDAW の画面](docs/screenshot.png)
 
@@ -123,7 +123,8 @@ C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux で動きます�
 ## ダウンロード
 
 GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** から
-`myDAW-Windows`（`myDAW.exe`）/ `myDAW-macOS`（`myDAW.app`）/ `myDAW-Linux` をダウンロードできます。
+`myDAW-Windows`（`myDAW.exe`）/ `myDAW-macOS`（`myDAW.app`）/ `myDAW-Linux` / `myDAW-iOS`（iPhone / iPad 用、
+[入れ方](#iphone--ipad-で使う)）をダウンロードできます。
 
 - macOS: 署名していないアプリなので、初回は右クリック →「開く」で起動してください。
 - Windows: SmartScreen が出たら「詳細情報」→「実行」。
@@ -133,6 +134,75 @@ GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** から
   画面に収まらない位置は使わずに、自動で収まる位置に直します。
 - それでもタイトルバー（閉じる・最小化ボタン）が見えないときは、Windows なら **Win + ↑**（最大化）、
   **Alt + Space** → 「移動」/「最大化」、**Alt + F4**（閉じる）が使えます。macOS は **Control + Command + F**（フルスクリーン）。
+
+## iPhone / iPad で使う
+
+同じアプリが iPhone / iPad でも動きます（iOS 15 以降）。iPhone は**横向き**で使います。
+
+### インストール方法
+
+App Store には出していないので、次のどちらかで入れます。
+
+**A. Mac が無い場合（Windows パソコンでも可）: ビルド済みのアプリを自分の Apple ID で署名して入れる**
+
+1. GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** の `myDAW-iOS` をダウンロードして展開し、
+   `myDAW-iOS-unsigned.ipa` を取り出します。
+2. [Sideloadly](https://sideloadly.io) や [AltStore](https://altstore.io) などのサイドロードツールをパソコンに入れ、
+   iPhone を USB でつないで、その `.ipa` を自分の Apple ID で署名してインストールします。
+3. iPhone の「設定」→「一般」→「VPN とデバイス管理」で自分の Apple ID を「信頼」します
+   （iOS 16 以降は「設定」→「プライバシーとセキュリティ」→「デベロッパモード」も ON にします）。
+
+> 無料の Apple ID で署名したアプリは **7 日で起動できなくなります**。その場合は同じ手順でもう一度入れ直してください
+> （作ったプロジェクトは消えません）。有料の Apple Developer Program（年 99 ドル）なら 1 年有効で、TestFlight で配ることもできます。
+
+**B. Mac と Xcode がある場合: 自分でビルドして入れる**
+
+```bash
+cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS
+open build-ios/MyDAW.xcodeproj
+```
+
+Xcode で `MyDAW` ターゲットの「Signing & Capabilities」で自分の Team を選び、iPhone をつないで ▶ で実行します
+（Bundle Identifier が使えないと言われたら `com.mydaw.app` を自分だけの名前に変えます）。
+
+### iPhone での操作（パソコン版との違い）
+
+- **画面**: 左上の **Song / Pattern** でソング画面とパターンエディタを切り替えます（iPad など広い画面では両方表示）。
+  **Menu** にファイル操作・WAV 書き出し・マスターエフェクト・オーディオ設定・プラグインがまとまっています。
+- **右クリックの代わり = 長押し**: チャンネル名、パターン一覧、ソングのブロック、トラック名、サンプラーのスライス番号を
+  長押しするとメニューが出ます。
+- **ステップ入力**: マスをタップで ON / OFF、**横になぞる**と連続で入力、**縦になぞる**とスクロール。
+  音符を長押しすると**強さ（ベロシティ）**と削除のメニュー（パソコンの Ctrl + ホイールの代わり）。
+- **ピアノロール**: 空いている所をタップで音符を追加、音符をドラッグで移動 / 右端をドラッグで長さ、ダブルタップで削除、
+  長押しで強さ。空いている所や鍵盤をなぞるとスクロールします。
+- **ソング**: パターン一覧のパターンを**横に**ドラッグしてソングへ置きます（縦は一覧のスクロール）。
+  空いている所をなぞるとスクロール、ダブルタップで選択中のパターンを置く、ブロックの長押しで複製・削除・
+  「Edit pattern」（そのパターンをエディタで開く）。拡大縮小は **- / +** ボタン。
+- **サンプルエディタ / サンプラー**: 全画面で開き、右上の × で閉じます。画面に入りきらない部分は上下にスクロールできます。
+  波形をなぞると範囲選択です。
+
+### ファイルの場所
+
+- 保存するときは名前を聞かれ、アプリの書類フォルダに保存されます。「ファイル」アプリの
+  **このiPhone内 > myDAW** から見えるので、パソコンとのやり取りもここで行えます。
+  - プロジェクト: `myDAW` 直下（`<名前>.mydaw` と `<名前> Samples` フォルダ）
+  - パターン: `Patterns`、書き出した WAV: `Exports`、取り込んだ音: `Imported Audio`
+- **+ Sample** や **Open audio file...** では「ファイル」アプリの画面が開き、iCloud Drive などからも選べます。
+  選んだ音はアプリの中にコピーされるので、元のファイルを消してもプロジェクトは壊れません。
+  iPhone では WAV / MP3 / AIFF / FLAC / OGG に加えて **m4a（ボイスメモなど）/ AAC / CAF** も読み込めます。
+- **Export WAV** の後は共有メニューが出るので、AirDrop で送ったり「ファイル」に保存したりできます。
+- アプリを切り替えたとき、保存していない変更は自動で保存されます（名前が無いプロジェクトは `Autosave`）。
+  次に開いたときは最後のプロジェクトから続けられます。
+
+### iPhone / iPad での制限
+
+- **VST3 は使えません**（iOS には VST3 がありません）。代わりに **AUv3** のプラグイン（App Store の
+  Audio Unit 対応アプリ）を使えます。Menu →「Plug-in manager (AUv3)...」→ Options →「Scan for new or updated AudioUnit plug-ins」。
+  パソコンで VST3 を使って作ったプロジェクトを開くと、VST3 シンセのチャンネルは「読み込めない」と表示され（設定は残ります）、
+  VST3 エフェクトは外されます（そのまま iPhone で上書き保存すると、パソコンで開いてもそのエフェクトは戻りません。別名で保存するのがおすすめです）。
+- **AI ステム分離**も動きますが、iPhone はパソコンより遅く、メモリの都合で 1 つずつ処理します
+  （数秒の選択範囲なら数分、1 曲だと数十分かかることがあります）。分離中はアプリを前面に出したままにしてください。
+- ファイルのドラッグ＆ドロップとキーボードショートカットは使えません（ボタンとメニューから同じ操作ができます）。
 
 ## ビルド方法
 
@@ -144,7 +214,9 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
-実行ファイルは `build/MyDAW_artefacts/Release/` にできます。
+実行ファイルは `build/MyDAW_artefacts/Release/` にできます。iPhone / iPad 用のビルドは [iPhone / iPad で使う](#iphone--ipad-で使う) を見てください。
+
+スマホの画面サイズでの見え方は、パソコン版でも `myDAW --window-size 750x369` のように窓の大きさを指定して確認できます。
 
 Linux では先に次のパッケージを入れてください:
 
@@ -177,15 +249,18 @@ Source/
   Audio/Slicing.*      自動スライス（アタック検出・等分・拍）と切り出し
   AI/StemSeparation.*  AI ステム分離（demucs.cpp の呼び出し、並列処理、モデルのダウンロード）
   Audio/EffectChain.*  エフェクトプラグインの直列処理
-  Audio/PluginManager.* VST3 のスキャン・読み込み
+  Audio/PluginManager.* VST3（iOS では AUv3）のスキャン・読み込み
   UI/                  画面（TransportBar, PatternList, StepGrid, PianoRoll, PatternEditor, SongEditor, SampleEditor, Sampler ...）
+  UI/Touch.*           タッチ操作（長押し = 右クリック、メニューを指の横に出す）
+  UI/AppFiles.*        ファイルを開く / 保存（iOS はアプリの書類フォルダ・共有メニュー）
+  UI/WindowPlacement.* 窓の配置（iOS は全画面・セーフエリア・スクロール表示）
 Tests/IntegrationTests.cpp
 ThirdParty/demucs.cpp/ Demucs v4 の C++ 推論ライブラリ（MIT、src のみ同梱）
 ```
 
 ## 現在の制限・今後のアイデア
 
-- VST2 は非対応（Steinberg が SDK の配布を終了しているため）。VST3 と Audio Unit（macOS）に対応。
+- VST2 は非対応（Steinberg が SDK の配布を終了しているため）。VST3 と Audio Unit（macOS）、AUv3（iPhone / iPad）に対応。
 - Windows の ASIO は未対応（WASAPI / DirectSound で動作）。ASIO SDK を入れれば有効化できます。
 - Undo はサンプルエディタの中だけです（打ち込み・ソング編集の Undo はまだ）。MIDI キーボード入力 / 録音、オートメーション、オーディオ録音もまだありません。
 - プラグインのスキャンはアプリ内で行うため、壊れたプラグインがあるとスキャン中に落ちることがあります

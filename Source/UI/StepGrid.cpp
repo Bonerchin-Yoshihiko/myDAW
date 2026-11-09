@@ -283,7 +283,7 @@ void StepGrid::updateLayout (int visibleWidth)
     const auto steps = p != nullptr ? p->totalSteps() : 16;
 
     // phones: a narrower channel column leaves more room for the steps
-    headerWidth = visibleWidth < 760 ? 214 : 276;
+    headerWidth = visibleWidth < 640 ? 214 : 276;
 
     cellWidth = jlimit (14, 44, (visibleWidth - headerWidth - 12) / jmax (1, steps));
 

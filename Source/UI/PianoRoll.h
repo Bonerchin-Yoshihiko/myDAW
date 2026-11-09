@@ -63,6 +63,6 @@ private:
 
     // a finger on empty space adds a note only when it is lifted without moving
     // (moving it scrolls the view)
-    bool touchPending = false;
+    bool touchPending = false, touchInput = false;
     LongPress longPress;
 };

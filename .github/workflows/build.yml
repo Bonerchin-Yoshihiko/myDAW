@@ -83,10 +83,12 @@ jobs:
 
       - name: Package
         run: |
-          APP=$(find build-ios -type d -name "myDAW.app" -path "*Release-iphoneos*" | head -n 1)
+          find build-ios -type d -name "*.app" -prune
+          APP=$(find build-ios -type d -name "myDAW.app" -prune | grep -v '\.build/' | head -n 1)
           echo "App bundle: $APP"
           test -n "$APP"
           plutil -p "$APP/Info.plist"
+          file "$APP/myDAW"
           mkdir -p dist/Payload
           cp -R "$APP" dist/Payload/
           (cd dist && zip -qry myDAW-iOS-unsigned.ipa Payload && rm -rf Payload)
