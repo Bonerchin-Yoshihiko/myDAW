@@ -10,7 +10,19 @@ namespace
     }
 }
 
-PianoRoll::PianoRoll (Session& s) : session (s)
+PianoRoll::PianoRoll (Session& s)
+    : session (s),
+      longPress ([this] (Point<int>)
+      {
+          const auto index = dragNoteIndex;
+          stopPreview();
+          dragMode = DragMode::none;
+          dragNoteIndex = -1;
+          setViewportIgnoreDragFlag (false);
+
+          if (index >= 0)
+              showNoteMenu (index);
+      })
 {
     session.addListener (this);
 }
@@ -102,7 +114,9 @@ int PianoRoll::findNoteAt (Point<int> pos, bool& onRightEdge) const
 
         if (r.contains (pos))
         {
-            onRightEdge = pos.x >= r.getRight() - jmin (7, r.getWidth() / 3);
+            // a finger needs a wider grip on the note's end
+            const auto grip = Desktop::getInstance().getMainMouseSource().isTouch() ? 14 : 7;
+            onRightEdge = pos.x >= r.getRight() - jmin (grip, r.getWidth() / 3);
             return i;
         }
     }
@@ -253,13 +267,18 @@ void PianoRoll::mouseMove (const MouseEvent& e)
 void PianoRoll::mouseDown (const MouseEvent& e)
 {
     auto* p = session.getCurrentPattern();
+    touchPending = false;
+    setViewportIgnoreDragFlag (false);
 
     if (p == nullptr || session.getProject().findChannel (channelId) == nullptr)
         return;
 
+    const auto touch = Touch::isTouch (e);
+
     if (e.x < keyWidth)
     {
-        dragMode = DragMode::keyboard;
+        // with a finger the keyboard only plays the key; dragging it scrolls
+        dragMode = touch ? DragMode::none : DragMode::keyboard;
         startPreview (yToPitch (e.y));
         return;
     }
@@ -282,19 +301,24 @@ void PianoRoll::mouseDown (const MouseEvent& e)
 
     if (index < 0)
     {
+        if (touch)
+        {
+            touchPending = true;   // a tap adds a note (see mouseUp), a drag scrolls
+            return;
+        }
+
         if (! isPositiveAndBelow (step, p->totalSteps()))
             return;
 
-        Note n;
-        n.channelId = channelId;
-        n.step = step;
-        n.pitch = yToPitch (e.y);
-        n.length = jmin (lastLength, p->totalSteps() - step);
-        n.velocity = 0.8f;
-        p->notes.push_back (n);
+        addNoteAt (e.getPosition());
         index = (int) p->notes.size() - 1;
         edge = false;
-        session.patternChanged (p->id);
+    }
+
+    if (touch)
+    {
+        setViewportIgnoreDragFlag (true);   // the finger moves the note, not the view
+        longPress.start (e);
     }
 
     dragNoteIndex = index;
@@ -307,9 +331,36 @@ void PianoRoll::mouseDown (const MouseEvent& e)
         startPreview (dragOriginal.pitch);
 }
 
+void PianoRoll::addNoteAt (Point<int> pos)
+{
+    auto* p = session.getCurrentPattern();
+    const auto step = xToStep (pos.x);
+
+    if (p == nullptr || ! isPositiveAndBelow (step, p->totalSteps()))
+        return;
+
+    Note n;
+    n.channelId = channelId;
+    n.step = step;
+    n.pitch = yToPitch (pos.y);
+    n.length = jmin (lastLength, p->totalSteps() - step);
+    n.velocity = 0.8f;
+    p->notes.push_back (n);
+    session.patternChanged (p->id);
+}
+
 void PianoRoll::mouseDrag (const MouseEvent& e)
 {
     auto* p = session.getCurrentPattern();
+    longPress.drag (e);
+
+    if (Touch::isTouch (e) && e.getDistanceFromDragStart() > Touch::dragThreshold)
+    {
+        touchPending = false;
+
+        if (dragMode == DragMode::none)
+            stopPreview();   // scrolling
+    }
 
     if (dragMode == DragMode::keyboard)
     {
@@ -317,7 +368,7 @@ void PianoRoll::mouseDrag (const MouseEvent& e)
         return;
     }
 
-    if (p == nullptr || ! isPositiveAndBelow (dragNoteIndex, (int) p->notes.size()))
+    if (dragMode == DragMode::none || p == nullptr || ! isPositiveAndBelow (dragNoteIndex, (int) p->notes.size()))
         return;
 
     auto& n = p->notes[(size_t) dragNoteIndex];
@@ -346,9 +397,15 @@ void PianoRoll::mouseDrag (const MouseEvent& e)
         session.patternChanged (p->id);
 }
 
-void PianoRoll::mouseUp (const MouseEvent&)
+void PianoRoll::mouseUp (const MouseEvent& e)
 {
     auto* p = session.getCurrentPattern();
+    longPress.cancel();
+
+    if (touchPending && e.getNumberOfClicks() < 2)
+        addNoteAt (e.getMouseDownPosition());
+
+    touchPending = false;
 
     if (dragMode == DragMode::move && p != nullptr && isPositiveAndBelow (dragNoteIndex, (int) p->notes.size()))
         lastLength = p->notes[(size_t) dragNoteIndex].length;
@@ -356,6 +413,51 @@ void PianoRoll::mouseUp (const MouseEvent&)
     stopPreview();
     dragMode = DragMode::none;
     dragNoteIndex = -1;
+    setViewportIgnoreDragFlag (false);
+}
+
+void PianoRoll::showNoteMenu (int noteIndex)
+{
+    auto* p = session.getCurrentPattern();
+
+    if (p == nullptr || ! isPositiveAndBelow (noteIndex, (int) p->notes.size()))
+        return;
+
+    const auto patternId = p->id;
+    const auto note = p->notes[(size_t) noteIndex];
+
+    // find the note again when the menu item is picked (the list may have changed)
+    auto withNote = [this, patternId, note] (std::function<void (Pattern&, size_t)> action)
+    {
+        if (auto* pat = session.getProject().findPattern (patternId))
+        {
+            for (size_t i = 0; i < pat->notes.size(); ++i)
+            {
+                auto& n = pat->notes[i];
+
+                if (n.channelId == note.channelId && n.step == note.step && n.pitch == note.pitch)
+                {
+                    action (*pat, i);
+                    session.patternChanged (patternId);
+                    return;
+                }
+            }
+        }
+    };
+
+    PopupMenu m;
+    m.addSectionHeader ("Velocity (strength)");
+
+    for (auto percent : { 100, 80, 60, 40, 20 })
+    {
+        const auto v = (float) percent / 100.0f;
+        m.addItem (String (percent) + " %", true, std::abs (note.velocity - v) < 0.026f,
+                   [withNote, v] { withNote ([v] (Pattern& pat, size_t i) { pat.notes[i].velocity = v; }); });
+    }
+
+    m.addSeparator();
+    m.addItem ("Delete note", [withNote] { withNote ([] (Pattern& pat, size_t i) { pat.notes.erase (pat.notes.begin() + (long) i); }); });
+    m.showMenuAsync (Touch::menuAtPointer (PopupMenu::Options().withTargetComponent (this)));
 }
 
 void PianoRoll::mouseDoubleClick (const MouseEvent& e)

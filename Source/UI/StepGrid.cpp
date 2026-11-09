@@ -1,4 +1,5 @@
 #include "UI/StepGrid.h"
+#include "UI/AppFiles.h"
 #include "UI/ChannelSettings.h"
 #include "UI/Sampler.h"
 
@@ -6,7 +7,13 @@
 class StepGrid::RowHeader : public Component
 {
 public:
-    RowHeader (StepGrid& g, Channel& c) : grid (g), channelId (c.id)
+    RowHeader (StepGrid& g, Channel& c)
+        : grid (g), channelId (c.id),
+          longPress ([this] (Point<int>)
+          {
+              stopPreview();
+              grid.showChannelMenu (channelId, *this);
+          })
     {
         mute.setButtonText ("M");
         mute.setClickingTogglesState (true);
@@ -24,6 +31,7 @@ public:
         volume.setDoubleClickReturnValue (true, 0.8);
         volume.setValue (c.volume.load(), dontSendNotification);
         volume.setColour (Slider::rotarySliderFillColourId, c.colour);
+        volume.setViewportIgnoreDragFlag (true);   // turning the knob with a finger must not scroll
         volume.setPopupDisplayEnabled (true, true, nullptr);
         volume.textFromValueFunction = [] (double v)
         {
@@ -55,6 +63,10 @@ public:
 
     void resized() override
     {
+        // narrow (phones): no volume knob (it is in the "..." settings)
+        const auto narrow = getWidth() < 260;
+        volume.setVisible (! narrow);
+
         auto r = getLocalBounds().reduced (0, 5);
         r.removeFromLeft (18);
         mute.setBounds (r.removeFromLeft (22));
@@ -64,8 +76,13 @@ public:
         r.removeFromRight (3);
         edit.setBounds (r.removeFromRight (36).reduced (0, 1));
         r.removeFromRight (3);
-        volume.setBounds (r.removeFromRight (26).expanded (0, 3));
-        r.removeFromRight (2);
+
+        if (! narrow)
+        {
+            volume.setBounds (r.removeFromRight (26).expanded (0, 3));
+            r.removeFromRight (2);
+        }
+
         nameArea = r.withTrimmedLeft (4);
     }
 
@@ -121,6 +138,8 @@ public:
             return;
         }
 
+        longPress.start (e);
+
         if (auto* c = getChannel())
         {
             previewPitch = c->rootNote.load();
@@ -130,7 +149,21 @@ public:
         }
     }
 
+    void mouseDrag (const MouseEvent& e) override
+    {
+        longPress.drag (e);
+
+        if (Touch::isTouch (e) && e.getDistanceFromDragStart() > Touch::dragThreshold)
+            stopPreview();   // the finger is scrolling the grid
+    }
+
     void mouseUp (const MouseEvent&) override
+    {
+        longPress.cancel();
+        stopPreview();
+    }
+
+    void stopPreview()
     {
         if (previewPitch >= 0)
             grid.session.previewNote (channelId, previewPitch, false);
@@ -157,6 +190,7 @@ public:
 
     StepGrid& grid;
     const int channelId;
+    LongPress longPress;
     TextButton mute, keys, more, edit;
     Slider volume;
     Rectangle<int> nameArea;
@@ -167,7 +201,15 @@ public:
 
 //==============================================================================
 StepGrid::StepGrid (Session& s, PluginWindowManager& w, SampleEditorManager& e, SamplerManager& sm)
-    : session (s), pluginWindows (w), sampleEditors (e), sampler (sm)
+    : session (s), pluginWindows (w), sampleEditors (e), sampler (sm),
+      longPress ([this] (Point<int>)
+      {
+          if (touchPending)
+          {
+              touchPending = false;
+              showNoteMenu (touchRow, touchStep);
+          }
+      })
 {
     session.addListener (this);
     rebuildRows();
@@ -239,6 +281,9 @@ void StepGrid::updateLayout (int visibleWidth)
     lastVisibleWidth = visibleWidth;
     const auto* p = session.getCurrentPattern();
     const auto steps = p != nullptr ? p->totalSteps() : 16;
+
+    // phones: a narrower channel column leaves more room for the steps
+    headerWidth = visibleWidth < 760 ? 214 : 276;
 
     cellWidth = jlimit (14, 44, (visibleWidth - headerWidth - 12) / jmax (1, steps));
 
@@ -365,9 +410,14 @@ void StepGrid::paint (Graphics& g)
     g.fillPath (border);
     g.setColour (Theme::dimText);
     g.setFont (Theme::font (13.0f));
-    g.drawText (rowChannelIds.empty() ? "Drop WAV / MP3 files here, or use \"+ Sample\" / \"+ Instrument\" above to add sounds"
-                                      : "Drop more WAV / MP3 files here to add channels",
-                hint, Justification::centred);
+    if (Touch::isMobile())
+        g.drawText (rowChannelIds.empty() ? "Use \"+ Sample\" / \"+ Instrument\" above to add sounds"
+                                          : "Tap a step to switch it on or off, swipe sideways to fill, hold a note for its velocity",
+                    hint.reduced (8, 0), Justification::centred);
+    else
+        g.drawText (rowChannelIds.empty() ? "Drop WAV / MP3 files here, or use \"+ Sample\" / \"+ Instrument\" above to add sounds"
+                                          : "Drop more WAV / MP3 files here to add channels",
+                    hint, Justification::centred);
 }
 
 void StepGrid::applyPaint (int row, int step)
@@ -404,23 +454,65 @@ void StepGrid::applyPaint (int row, int step)
     }
 }
 
+void StepGrid::startPainting (int row, int step, bool adds)
+{
+    painting = true;
+    paintRow = row;
+    lastPaintStep = step;
+    paintAdds = adds;
+    applyPaint (row, step);
+}
+
 void StepGrid::mouseDown (const MouseEvent& e)
 {
     int row, step;
+    touchPending = false;
 
     if (! getCellAt (e.getPosition(), row, step))
         return;
 
     auto* p = session.getCurrentPattern();
-    painting = true;
-    paintRow = row;
-    lastPaintStep = step;
-    paintAdds = ! e.mods.isPopupMenu() && ! p->hasNoteAt (rowChannelIds[(size_t) row], step);
-    applyPaint (row, step);
+    const auto has = p->hasNoteAt (rowChannelIds[(size_t) row], step);
+
+    if (Touch::isTouch (e))
+    {
+        touchPending = true;
+        touchRow = row;
+        touchStep = step;
+
+        if (has)
+            longPress.start (e);
+
+        return;
+    }
+
+    startPainting (row, step, ! e.mods.isPopupMenu() && ! has);
 }
 
 void StepGrid::mouseDrag (const MouseEvent& e)
 {
+    longPress.drag (e);
+
+    if (touchPending)
+    {
+        if (e.getDistanceFromDragStart() <= Touch::dragThreshold / 2)
+            return;
+
+        touchPending = false;
+
+        // up / down: let the view scroll. Sideways: paint along the row.
+        if (std::abs (e.getDistanceFromDragStartY()) >= std::abs (e.getDistanceFromDragStartX()))
+            return;
+
+        auto* p = session.getCurrentPattern();
+
+        if (p == nullptr || ! isPositiveAndBelow (touchRow, (int) rowChannelIds.size()))
+            return;
+
+        setViewportIgnoreDragFlag (true);
+        startPainting (touchRow, touchStep, ! p->hasNoteAt (rowChannelIds[(size_t) touchRow], touchStep));
+    }
+
     if (! painting)
         return;
 
@@ -440,8 +532,71 @@ void StepGrid::mouseDrag (const MouseEvent& e)
 
 void StepGrid::mouseUp (const MouseEvent&)
 {
+    longPress.cancel();
+
+    if (touchPending && ! longPress.hasFired())
+    {
+        // a tap
+        if (auto* p = session.getCurrentPattern(); p != nullptr && isPositiveAndBelow (touchRow, (int) rowChannelIds.size()))
+            startPainting (touchRow, touchStep, ! p->hasNoteAt (rowChannelIds[(size_t) touchRow], touchStep));
+    }
+
+    touchPending = false;
     painting = false;
     paintRow = -1;
+    setViewportIgnoreDragFlag (false);
+}
+
+void StepGrid::showNoteMenu (int row, int step)
+{
+    auto* p = session.getCurrentPattern();
+
+    if (p == nullptr || ! isPositiveAndBelow (row, (int) rowChannelIds.size()))
+        return;
+
+    const auto channelId = rowChannelIds[(size_t) row];
+    float velocity = -1.0f;
+
+    for (auto& n : p->notes)
+        if (n.channelId == channelId && n.step == step)
+            velocity = n.velocity;
+
+    if (velocity < 0.0f)
+        return;
+
+    const auto patternId = p->id;
+    auto setVelocity = [this, patternId, channelId, step] (float v)
+    {
+        if (auto* pat = session.getProject().findPattern (patternId))
+        {
+            for (auto& n : pat->notes)
+                if (n.channelId == channelId && n.step == step)
+                    n.velocity = v;
+
+            session.patternChanged (patternId);
+        }
+    };
+
+    PopupMenu m;
+    m.addSectionHeader ("Velocity (strength)");
+
+    for (auto percent : { 100, 80, 60, 40, 20 })
+    {
+        const auto v = (float) percent / 100.0f;
+        m.addItem (String (percent) + " %", true, std::abs (velocity - v) < 0.026f, [setVelocity, v] { setVelocity (v); });
+    }
+
+    m.addSeparator();
+    m.addItem ("Delete note", [this, patternId, channelId, step]
+    {
+        if (auto* pat = session.getProject().findPattern (patternId))
+        {
+            pat->removeNotesAt (channelId, step);
+            session.patternChanged (patternId);
+        }
+    });
+
+    m.showMenuAsync (Touch::menuAtPointer (PopupMenu::Options().withTargetComponent (this)));
 }
 
 void StepGrid::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& wheel)
@@ -470,26 +625,14 @@ void StepGrid::renameChannel (int channelId)
     if (c == nullptr)
         return;
 
-    auto* w = new AlertWindow ("Rename channel", {}, MessageBoxIconType::NoIcon, this);
-    w->addTextEditor ("name", c->name);
-    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
-    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-    w->enterModalState (true, ModalCallbackFunction::create ([this, channelId, w] (int result)
+    AppFiles::askForText ("Rename channel", {}, c->name, "OK", this, [this, channelId] (const String& name)
     {
-        if (result != 1)
-            return;
-
         if (auto* ch = session.getProject().findChannel (channelId))
         {
-            const auto name = w->getTextEditorContents ("name").trim();
-
-            if (name.isNotEmpty())
-            {
-                ch->name = name;
-                session.channelSettingsChanged();
-            }
+            ch->name = name;
+            session.channelSettingsChanged();
         }
-    }), true);
+    });
 }
 
 void StepGrid::editChannel (int channelId)
@@ -562,5 +705,5 @@ void StepGrid::showChannelMenu (int channelId, Component& target)
         });
     });
 
-    m.showMenuAsync (PopupMenu::Options().withTargetComponent (target).withMousePosition());
+    m.showMenuAsync (Touch::menuAtPointer (PopupMenu::Options().withTargetComponent (target)));
 }

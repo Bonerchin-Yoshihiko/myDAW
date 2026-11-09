@@ -2,10 +2,13 @@
 
 #include "Session.h"
 #include "UI/Theme.h"
+#include "UI/Touch.h"
 
 /** Piano roll for one channel of the current pattern.
     Click to add a note, drag to move, drag the right edge to change the length,
-    right-click (or double-click) to delete, Ctrl/Alt + mouse-wheel over a note for velocity. */
+    right-click (or double-click) to delete, Ctrl/Alt + mouse-wheel over a note for velocity.
+    With a finger: tap to add, drag a note to move it, drag empty space or the keyboard to
+    scroll, double-tap to delete, hold a note for velocity / delete. */
 class PianoRoll : public Component,
                   private Session::Listener
 {
@@ -14,7 +17,7 @@ public:
     ~PianoRoll() override;
 
     static constexpr int keyWidth = 58;
-    static constexpr int noteHeight = 14;
+    static constexpr int noteHeight = Touch::isMobile() ? 20 : 14;   // finger-sized rows on phones
 
     void setChannel (int channelId);
     int getChannelId() const noexcept { return channelId; }
@@ -42,6 +45,8 @@ private:
     int yToPitch (int y) const;
     void startPreview (int pitch);
     void stopPreview();
+    void showNoteMenu (int noteIndex);
+    void addNoteAt (Point<int>);
 
     Session& session;
     int channelId = 0;
@@ -55,4 +60,9 @@ private:
     Note dragOriginal;
     int dragStartStep = 0, dragStartPitch = 0;
     int previewPitch = -1;
+
+    // a finger on empty space adds a note only when it is lifted without moving
+    // (moving it scrolls the view)
+    bool touchPending = false;
+    LongPress longPress;
 };

@@ -3,6 +3,7 @@
 #include "Session.h"
 #include "UI/PluginWindows.h"
 #include "UI/Theme.h"
+#include "UI/Touch.h"
 
 class SamplerManager;
 
@@ -26,7 +27,7 @@ public:
     std::function<void()> onSelectionChanged, onViewChanged;
 
     /** Numbered slice markers drawn over the waveform (frames). Clicking a marker in the ruler
-        selects that slice; right-clicking calls onRegionMenu. */
+        selects that slice; right-clicking (or holding it with a finger) calls onRegionMenu. */
     void setRegions (std::vector<Range<int>>);
     std::function<void (int index)> onRegionMenu;
 
@@ -57,6 +58,8 @@ private:
     std::vector<float> mins[2], maxs[2];
     bool cacheValid = false;
     std::vector<Range<int>> regions;
+    int pressedRegion = -1;
+    LongPress longPress;
 
     int findRegionAt (float x) const;
 };

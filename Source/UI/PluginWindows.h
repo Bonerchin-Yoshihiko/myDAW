@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common.h"
+#include "UI/WindowPlacement.h"
 
 /** Keeps one editor window per plug-in instance. */
 class PluginWindowManager
@@ -19,7 +19,7 @@ private:
 };
 
 /** Shows the plug-in scanner / list (JUCE's PluginListComponent) in its own window. */
-class PluginManagerWindow : public DocumentWindow
+class PluginManagerWindow : public AppWindow
 {
 public:
     PluginManagerWindow (AudioPluginFormatManager&, KnownPluginList&, const File& deadMansPedal, PropertiesFile*);

@@ -1,5 +1,6 @@
 #include "UI/PatternEditor.h"
 #include "Audio/Channel.h"
+#include "UI/AppFiles.h"
 #include "UI/Sampler.h"
 
 PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorManager& e, SamplerManager& sampler)
@@ -65,15 +66,24 @@ PatternEditor::PatternEditor (Session& s, PluginWindowManager& w, SampleEditorMa
     }
 
     addSampleButton.setTooltip ("Import WAV / MP3 / AIFF / FLAC files as new channels");
-    addInstrumentButton.setTooltip ("Add a VST3 instrument plug-in as a new channel");
+    addInstrumentButton.setTooltip (Touch::isMobile() ? "Add an AUv3 instrument plug-in as a new channel"
+                                                      : "Add a VST3 instrument plug-in as a new channel");
     addSampleButton.onClick = [this]
     {
         auto& settings = session.getPluginManager().getSettings();
-        File dir (settings.getValue ("sampleDir", File::getSpecialLocation (File::userMusicDirectory).getFullPathName()));
-        chooser = std::make_unique<FileChooser> ("Import samples", dir, SampleData::getWildcard());
-        chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles
-                                  | FileBrowserComponent::canSelectMultipleItems,
-                              [this] (const FileChooser& fc) { addSamples (fc.getResults()); });
+
+        AppFiles::OpenRequest request;
+        request.title = "Import samples";
+        request.initialFolder = File (settings.getValue ("sampleDir", File::getSpecialLocation (File::userMusicDirectory).getFullPathName()));
+        request.wildcard = SampleData::getWildcard();
+        request.multipleFiles = true;
+        request.copyInto = AppFiles::getDocumentsFolder().getChildFile ("Imported Audio");
+
+        AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<PatternEditor> (this)] (const Array<File>& files)
+        {
+            if (safe != nullptr)
+                safe->addSamples (files);
+        });
     };
     addInstrumentButton.onClick = [this] { showInstrumentMenu(); };
     samplerButton.setTooltip ("Sampler: cut many samples out of one audio file, or split a song into vocals / drums / bass / guitar ... with AI");
@@ -138,11 +148,19 @@ void PatternEditor::resized()
     auto header = headerArea.removeFromTop (40).reduced (8, 6);
     auto buttonsRow = twoRows ? headerArea.reduced (8, 2).withTrimmedBottom (4) : header;
 
-    title.setBounds (header.removeFromLeft (64));
+    // narrow (phones): the "PATTERN" title gives its room to the settings
+    title.setVisible (getWidth() >= 700);
+
+    if (title.isVisible())
+        title.setBounds (header.removeFromLeft (64));
+
     colourButton.setBounds (header.removeFromLeft (22).reduced (0, 3));
     header.removeFromLeft (6);
     nameEditor.setBounds (header.removeFromLeft (jlimit (90, 150, header.getWidth() - 470)));
     header.removeFromLeft (8);
+
+    const auto narrow = getWidth() < 600;
+    stepsLabel.setText (narrow ? "Steps" : "Steps/beat", dontSendNotification);
 
     barsLabel.setBounds (header.removeFromLeft (36));
     barsBox.setBounds (header.removeFromLeft (56));
@@ -150,7 +168,7 @@ void PatternEditor::resized()
     beatsBox.setBounds (header.removeFromLeft (52));
     slashLabel.setBounds (header.removeFromLeft (12));
     unitBox.setBounds (header.removeFromLeft (52));
-    stepsLabel.setBounds (header.removeFromLeft (76));
+    stepsLabel.setBounds (header.removeFromLeft (narrow ? 46 : 76));
     stepsBox.setBounds (header.removeFromLeft (50));
 
     if (! twoRows)

@@ -1,7 +1,28 @@
 #include "UI/SongEditor.h"
 #include "Audio/Channel.h"
+#include "UI/AppFiles.h"
 
-SongEditor::SongEditor (Session& s) : session (s)
+SongEditor::SongEditor (Session& s)
+    : session (s),
+      longPress ([this] (Point<int> pos)
+      {
+          draggingClipId = 0;
+          touchPanning = false;
+
+          if (getHeadersArea().contains (pos))
+          {
+              const auto track = yToTrack (pos.y);
+
+              if (isPositiveAndBelow (track, (int) session.getProject().tracks.size()))
+                  showTrackMenu (track);
+          }
+          else if (auto* clip = clipAt (pos))
+          {
+              selectedClipId = clip->id;
+              repaint();
+              showClipMenu (clip->id);
+          }
+      })
 {
     title.setFont (Theme::font (12.0f, true));
     title.setColour (Label::textColourId, Theme::dimText);
@@ -30,7 +51,8 @@ SongEditor::SongEditor (Session& s) : session (s)
     addAndMakeVisible (zoomInButton);
     addAndMakeVisible (addTrackButton);
 
-    hintLabel.setText ("Drag patterns here  |  Alt/Ctrl-drag: copy  |  Double-click: place selected pattern  |  Right-click: menu",
+    hintLabel.setText (Touch::isMobile() ? "Drag patterns here  |  Double-tap: place selected pattern  |  Hold: menu"
+                                         : "Drag patterns here  |  Alt/Ctrl-drag: copy  |  Double-click: place selected pattern  |  Right-click: menu",
                        dontSendNotification);
     hintLabel.setFont (Theme::font (11.5f));
     hintLabel.setColour (Label::textColourId, Theme::dimText);
@@ -503,6 +525,8 @@ void SongEditor::mouseDown (const MouseEvent& e)
 {
     grabKeyboardFocus();
     auto& project = session.getProject();
+    touchPanning = false;
+    longPress.start (e);
 
     if (getRulerArea().contains (e.getPosition()))
     {
@@ -525,6 +549,7 @@ void SongEditor::mouseDown (const MouseEvent& e)
         }
         else if (e.x >= headerWidth - 30)
         {
+            longPress.cancel();   // the mute button
             project.tracks[(size_t) track].muted = ! project.tracks[(size_t) track].muted;
             session.arrangementEdited();
         }
@@ -571,11 +596,33 @@ void SongEditor::mouseDown (const MouseEvent& e)
 
     selectedClipId = 0;
     repaint();
+
+    if (Touch::isTouch (e))
+    {
+        // a finger on empty space scrolls the song
+        longPress.cancel();
+        touchPanning = true;
+        panStartBeat = scrollBeat;
+        panStartY = scrollY;
+    }
 }
 
 void SongEditor::mouseDrag (const MouseEvent& e)
 {
     auto& project = session.getProject();
+    longPress.drag (e);
+
+    if (longPress.hasFired())
+        return;
+
+    if (touchPanning)
+    {
+        scrollBeat = jmax (0.0, panStartBeat - e.getDistanceFromDragStartX() / pixelsPerBeat);
+        scrollY = jmax (0, panStartY - e.getDistanceFromDragStartY());
+        updateScrollBars();
+        repaint();
+        return;
+    }
 
     if (draggingPlayhead)
     {
@@ -607,6 +654,8 @@ void SongEditor::mouseDrag (const MouseEvent& e)
 
 void SongEditor::mouseUp (const MouseEvent&)
 {
+    longPress.cancel();
+    touchPanning = false;
     draggingPlayhead = false;
     draggingClipId = 0;
     setMouseCursor (MouseCursor::NormalCursor);
@@ -693,7 +742,23 @@ void SongEditor::duplicateClip (int clipId)
 void SongEditor::showClipMenu (int clipId)
 {
     PopupMenu m;
-    m.addItem ("Duplicate after (Ctrl+D)", [this, clipId] { duplicateClip (clipId); });
+
+    if (onEditPattern)
+    {
+        m.addItem ("Edit pattern", [this, clipId]
+        {
+            if (auto* c = session.getProject().findClip (clipId))
+            {
+                session.selectPattern (c->patternId);
+
+                if (onEditPattern)
+                    onEditPattern();
+            }
+        });
+        m.addSeparator();
+    }
+
+    m.addItem (Touch::isMobile() ? "Duplicate after" : "Duplicate after (Ctrl+D)", [this, clipId] { duplicateClip (clipId); });
     m.addItem ("Make unique (copy the pattern)", [this, clipId]
     {
         auto* c = session.getProject().findClip (clipId);
@@ -719,8 +784,8 @@ void SongEditor::showClipMenu (int clipId)
         }
     });
     m.addSeparator();
-    m.addItem ("Delete (Del)", [this, clipId] { session.removeClip (clipId); selectedClipId = 0; });
-    m.showMenuAsync (PopupMenu::Options().withMousePosition());
+    m.addItem (Touch::isMobile() ? "Delete" : "Delete (Del)", [this, clipId] { session.removeClip (clipId); selectedClipId = 0; });
+    m.showMenuAsync (Touch::menuAtPointer());
 }
 
 void SongEditor::showTrackMenu (int track)
@@ -739,7 +804,7 @@ void SongEditor::showTrackMenu (int track)
     });
     m.addSeparator();
     m.addItem ("Remove track", session.getProject().tracks.size() > 1, false, [this, track] { removeTrack (track); });
-    m.showMenuAsync (PopupMenu::Options().withMousePosition());
+    m.showMenuAsync (Touch::menuAtPointer());
 }
 
 void SongEditor::renameTrack (int track)
@@ -749,21 +814,16 @@ void SongEditor::renameTrack (int track)
     if (! isPositiveAndBelow (track, (int) tracks.size()))
         return;
 
-    auto* w = new AlertWindow ("Rename track", {}, MessageBoxIconType::NoIcon, this);
-    w->addTextEditor ("name", tracks[(size_t) track].name);
-    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
-    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-    w->enterModalState (true, ModalCallbackFunction::create ([this, track, w] (int result)
+    AppFiles::askForText ("Rename track", {}, tracks[(size_t) track].name, "OK", this, [this, track] (const String& name)
     {
         auto& t = session.getProject().tracks;
-        const auto name = w->getTextEditorContents ("name").trim();
 
-        if (result == 1 && name.isNotEmpty() && isPositiveAndBelow (track, (int) t.size()))
+        if (isPositiveAndBelow (track, (int) t.size()))
         {
             t[(size_t) track].name = name;
             session.arrangementEdited();
         }
-    }), true);
+    });
 }
 
 void SongEditor::removeTrack (int track)

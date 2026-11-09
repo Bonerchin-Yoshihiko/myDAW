@@ -1,12 +1,13 @@
 #include "UI/PluginWindows.h"
 #include "UI/Theme.h"
+#include "UI/Touch.h"
 #include "UI/WindowPlacement.h"
 
-class PluginWindowManager::Window : public DocumentWindow
+class PluginWindowManager::Window : public AppWindow
 {
 public:
     Window (AudioPluginInstance& p, const String& title, PluginWindowManager& m)
-        : DocumentWindow (title, Theme::background, DocumentWindow::closeButton | DocumentWindow::minimiseButton),
+        : AppWindow (title, DocumentWindow::closeButton | DocumentWindow::minimiseButton),
           plugin (p), manager (m)
     {
         AudioProcessorEditor* editor = plugin.hasEditor() ? plugin.createEditorIfNeeded() : nullptr;
@@ -14,15 +15,20 @@ public:
         if (editor == nullptr)
             editor = new GenericAudioProcessorEditor (plugin);
 
-        setUsingNativeTitleBar (true);
-        setContentOwned (editor, true);
-        setResizable (editor->isResizable(), false);
+        // phones: a fixed-size editor that is bigger than the screen can be scrolled
+        const auto editorResizes = editor->isResizable();
+        setScrollableContent (editor, editorResizes ? 0 : editor->getWidth(), editorResizes ? 0 : editor->getHeight());
+        setResizable (editorResizes, false);
+        placeOnScreen (editor->getWidth(), editor->getHeight());
 
-        // on screen, slightly offset from other plug-in windows
-        WindowPlacement::fitOnScreen (*this, getWidth(), getHeight());
-        const auto offset = ((int) manager.windows.size() % 6) * 28;
-        setTopLeftPosition (getX() + offset, getY() + offset);
-        WindowPlacement::keepOnScreen (*this);
+        if (! Touch::isMobile())
+        {
+            // on screen, slightly offset from other plug-in windows
+            const auto offset = ((int) manager.windows.size() % 6) * 28;
+            setTopLeftPosition (getX() + offset, getY() + offset);
+            WindowPlacement::keepOnScreen (*this);
+        }
+
         setVisible (true);
         WindowPlacement::keepOnScreenAfterShowing (*this);
     }
@@ -75,14 +81,13 @@ void PluginWindowManager::close (AudioPluginInstance* plugin)
 //==============================================================================
 PluginManagerWindow::PluginManagerWindow (AudioPluginFormatManager& formats, KnownPluginList& list,
                                           const File& deadMansPedal, PropertiesFile* props)
-    : DocumentWindow ("Plug-in Manager", Theme::background, DocumentWindow::closeButton)
+    : AppWindow (Touch::isMobile() ? "Plug-ins (AUv3)" : "Plug-in Manager", DocumentWindow::closeButton)
 {
     auto* content = new PluginListComponent (formats, list, deadMansPedal, props, false);
     content->setSize (760, 520);
-    setUsingNativeTitleBar (true);
-    setContentOwned (content, true);
+    setScrollableContent (content, 0, 0);
     setResizable (true, false);
-    WindowPlacement::fitOnScreen (*this, 760, 520);
+    placeOnScreen (760, 520);
     setVisible (true);
     WindowPlacement::keepOnScreenAfterShowing (*this);
 }

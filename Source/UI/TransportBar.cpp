@@ -1,4 +1,5 @@
 #include "UI/TransportBar.h"
+#include "UI/Touch.h"
 
 TransportBar::TransportBar (Session& s) : session (s)
 {
@@ -55,7 +56,7 @@ TransportBar::TransportBar (Session& s) : session (s)
     audioButton.onClick    = [this] { if (onAudioSettings) onAudioSettings (audioButton); };
     exportButton.onClick   = [this] { if (onExportWav) onExportWav(); };
     masterFxButton.setTooltip ("Effect plug-ins on the master output");
-    pluginsButton.setTooltip ("Scan for VST3 plug-ins");
+    pluginsButton.setTooltip (Touch::isMobile() ? "Find AUv3 plug-ins" : "Scan for VST3 plug-ins");
     audioButton.setTooltip ("Audio device settings");
     exportButton.setTooltip ("Render the song to a WAV file");
 
@@ -83,19 +84,31 @@ void TransportBar::paint (Graphics& g)
     }
 }
 
+void TransportBar::setSmallScreen (bool shouldBeSmall)
+{
+    if (smallScreen != shouldBeSmall)
+    {
+        smallScreen = shouldBeSmall;
+        fileButton.setButtonText (smallScreen ? "Menu" : "File");
+        resized();
+        repaint();
+    }
+}
+
 void TransportBar::resized()
 {
     // On narrow windows (small or scaled screens) drop what is also reachable elsewhere:
-    // Export / Audio / Plug-ins are in the File menu.
+    // Export / Audio / Plug-ins are in the File menu (and on phones Master FX too).
     const auto width = getWidth();
-    const auto full = width >= 1270;
-    const auto medium = width >= 1040;
-    const auto compact = width >= 900;
+    const auto full = width >= 1270 && ! smallScreen;
+    const auto medium = width >= 1040 && ! smallScreen;
+    const auto compact = width >= 900 || (smallScreen && width >= 700);
 
     showLogo = medium;
     exportButton.setVisible (full);
     audioButton.setVisible (full);
     pluginsButton.setVisible (full);
+    masterFxButton.setVisible (! smallScreen);
     masterLabel.setVisible (medium);
     bpmLabel.setVisible (compact);
     meter.setVisible (compact);
@@ -132,8 +145,11 @@ void TransportBar::resized()
         r.removeFromRight (4);
     }
 
-    masterFxButton.setBounds (r.removeFromRight (80));
-    r.removeFromRight (compact ? 10 : 6);
+    if (! smallScreen)
+    {
+        masterFxButton.setBounds (r.removeFromRight (80));
+        r.removeFromRight (compact ? 10 : 6);
+    }
 
     if (compact)
     {

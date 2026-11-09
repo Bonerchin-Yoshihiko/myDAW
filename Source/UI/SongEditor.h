@@ -2,10 +2,12 @@
 
 #include "Session.h"
 #include "UI/Theme.h"
+#include "UI/Touch.h"
 
 /** The song arrangement: tracks with pattern blocks ("clips") that snap together like
     puzzle pieces. Drag patterns in from the pattern list, drag clips around,
-    Alt/Ctrl-drag to copy, right-click for more. */
+    Alt/Ctrl-drag to copy, right-click for more. With a finger: drag empty space to scroll,
+    hold a clip or a track name for the menu. */
 class SongEditor : public Component,
                    public DragAndDropTarget,
                    private Session::Listener,
@@ -31,6 +33,10 @@ public:
     void itemDragMove (const SourceDetails&) override;
     void itemDragExit (const SourceDetails&) override;
     void itemDropped (const SourceDetails&) override;
+
+    /** Set on phones, where the pattern editor is not visible next to the song: the clip menu
+        then offers to open the clip's pattern. */
+    std::function<void()> onEditPattern;
 
 private:
     static constexpr int toolbarHeight = 32;
@@ -89,4 +95,10 @@ private:
     double dropStart = 0.0;
 
     double lastPlayheadPos = -1.0;
+
+    // touch: dragging empty space scrolls; holding shows a menu
+    LongPress longPress;
+    bool touchPanning = false;
+    double panStartBeat = 0.0;
+    int panStartY = 0;
 };

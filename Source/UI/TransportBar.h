@@ -17,6 +17,10 @@ public:
     void paint (Graphics&) override;
     void resized() override;
 
+    /** Phones: the File button becomes "Menu" and the buttons that are also in that menu
+        (Master FX, Plug-ins, Audio, Export) are left out. */
+    void setSmallScreen (bool);
+
 private:
     void sessionChanged (int changes) override;
     void timerCallback() override;
@@ -38,4 +42,5 @@ private:
     LevelMeter meter;
     TextButton masterFxButton { "Master FX" }, pluginsButton { "Plug-ins" }, audioButton { "Audio" }, exportButton { "Export WAV" };
     bool showLogo = true;
+    bool smallScreen = false;
 };

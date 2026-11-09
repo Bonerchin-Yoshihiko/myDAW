@@ -1,4 +1,5 @@
 #include "UI/WindowPlacement.h"
+#include "UI/Theme.h"
 
 namespace
 {
@@ -136,4 +137,152 @@ bool WindowPlacement::restoreState (ResizableWindow& w, const String& state)
     }
 
     return false;
+}
+
+//==============================================================================
+namespace
+{
+   #if JUCE_IOS || JUCE_ANDROID
+    BorderSize<int> getSafeAreaInsets()
+    {
+        if (auto* display = Desktop::getInstance().getDisplays().getPrimaryDisplay())
+            return display->safeAreaInsets;
+
+        return {};
+    }
+   #endif
+
+    /** Sliders, scroll bars and waveforms inside a scrollable view should keep their drags
+        for themselves instead of scrolling the view (with a finger, a Viewport scrolls on drag). */
+    void keepDragsInsideControls (Component& c)
+    {
+        if (dynamic_cast<Slider*> (&c) != nullptr || dynamic_cast<ScrollBar*> (&c) != nullptr)
+            c.setViewportIgnoreDragFlag (true);
+
+        for (auto* child : c.getChildren())
+            keepDragsInsideControls (*child);
+    }
+}
+
+bool WindowPlacement::isSmallScreen (int width, int height)
+{
+    return width < 700 || height < 500;
+}
+
+//==============================================================================
+ScrollingContent::ScrollingContent (std::unique_ptr<Component> c, Mode m, Point<int> sizeLimit)
+    : content (std::move (c)), mode (m), limit (sizeLimit)
+{
+    setScrollBarsShown (true, true);
+    setScrollBarThickness (8);
+    keepDragsInsideControls (*content);
+    setViewedComponent (content.get(), false);
+
+    if (mode == Mode::followContent)
+    {
+        content->addComponentListener (&sizeWatcher);
+        updateSize();
+    }
+    else
+    {
+        setSize (jmax (1, content->getWidth()), jmax (1, content->getHeight()));
+    }
+}
+
+ScrollingContent::~ScrollingContent()
+{
+    content->removeComponentListener (&sizeWatcher);
+    setViewedComponent (nullptr, false);
+}
+
+void ScrollingContent::resized()
+{
+    if (mode == Mode::fillView)
+    {
+        // the minimum size is the limit; the content never gets smaller than that
+        const auto needsVertical = getHeight() < limit.y;
+        const auto needsHorizontal = getWidth() < limit.x;
+        const auto w = getWidth() - (needsVertical ? getScrollBarThickness() : 0);
+        const auto h = getHeight() - (needsHorizontal ? getScrollBarThickness() : 0);
+        content->setSize (jmax (limit.x, w), jmax (limit.y, h));
+    }
+
+    Viewport::resized();
+}
+
+void ScrollingContent::updateSize()
+{
+    const auto tooTall = content->getHeight() > limit.y;
+    setSize (jmin (limit.x, content->getWidth() + (tooTall ? getScrollBarThickness() : 0)),
+             jmin (limit.y, content->getHeight()));
+}
+
+std::unique_ptr<Component> WindowPlacement::limitToScreen (std::unique_ptr<Component> content, const Component& parent)
+{
+   #if JUCE_IOS || JUCE_ANDROID
+    const auto area = getSafeAreaInsets().subtractedFrom (parent.getLocalBounds());
+    const Point<int> limit (area.getWidth() - 40, area.getHeight() - 40);
+
+    if (content->getHeight() > limit.y || content->getWidth() > limit.x)
+        return std::make_unique<ScrollingContent> (std::move (content), ScrollingContent::Mode::followContent, limit);
+   #else
+    ignoreUnused (parent);
+   #endif
+
+    return content;
+}
+
+//==============================================================================
+AppWindow::AppWindow (const String& title, int desktopButtons)
+    : DocumentWindow (title, Theme::background, desktopButtons)
+{
+   #if JUCE_IOS || JUCE_ANDROID
+    // no title bar for the main window (no buttons), a touch-sized one for the others
+    setUsingNativeTitleBar (desktopButtons == 0);
+    setTitleBarHeight (40);
+    setTitleBarButtonsRequired (desktopButtons != 0 ? DocumentWindow::closeButton : 0, false);
+    setDraggable (false);
+   #else
+    setUsingNativeTitleBar (true);
+   #endif
+}
+
+BorderSize<int> AppWindow::getBorderThickness() const
+{
+   #if JUCE_IOS || JUCE_ANDROID
+    return getSafeAreaInsets();
+   #else
+    return DocumentWindow::getBorderThickness();
+   #endif
+}
+
+void AppWindow::placeOnScreen (int preferredWidth, int preferredHeight, const Component* near)
+{
+   #if JUCE_IOS || JUCE_ANDROID
+    ignoreUnused (preferredWidth, preferredHeight, near);
+    setResizable (false, false);
+    setFullScreen (true);
+   #else
+    WindowPlacement::fitOnScreen (*this, preferredWidth, preferredHeight, near);
+   #endif
+}
+
+void AppWindow::setScrollableContent (Component* c, int minimumWidth, int minimumHeight)
+{
+   #if JUCE_IOS || JUCE_ANDROID
+    std::unique_ptr<Component> owned (c);
+    auto* holder = new ScrollingContent (std::move (owned), ScrollingContent::Mode::fillView, { minimumWidth, minimumHeight });
+    setContentOwned (holder, false);
+   #else
+    ignoreUnused (minimumWidth, minimumHeight);
+    setContentOwned (c, true);
+   #endif
+}
+
+Component* AppWindow::getMainContent() const
+{
+    if (auto* holder = dynamic_cast<ScrollingContent*> (getContentComponent()))
+        return &holder->getContent();
+
+    return getContentComponent();
 }

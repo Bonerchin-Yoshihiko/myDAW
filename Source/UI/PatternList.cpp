@@ -1,10 +1,20 @@
 #include "UI/PatternList.h"
+#include "UI/AppFiles.h"
 
-PatternList::PatternList (Session& s) : session (s)
+PatternList::PatternList (Session& s)
+    : session (s),
+      longPress ([this] (Point<int> pos)
+      {
+          const auto row = list.getRowContainingPosition (pos.x - list.getX(), pos.y - list.getY());
+
+          if (row >= 0)
+              showRowMenu (row);
+      })
 {
     list.setModel (this);
     list.setRowHeight (40);
     list.setColour (ListBox::backgroundColourId, Theme::panel);
+    list.addMouseListener (this, true);
     addAndMakeVisible (list);
 
     for (auto* b : { &newButton, &cloneButton, &deleteButton, &saveButton, &loadButton })
@@ -51,7 +61,18 @@ PatternList::PatternList (Session& s) : session (s)
 
 PatternList::~PatternList()
 {
+    list.removeMouseListener (this);
     session.removeListener (this);
+}
+
+void PatternList::setSmallScreen (bool shouldBeSmall)
+{
+    if (smallScreen != shouldBeSmall)
+    {
+        smallScreen = shouldBeSmall;
+        resized();
+        repaint();
+    }
 }
 
 void PatternList::paint (Graphics& g)
@@ -59,11 +80,14 @@ void PatternList::paint (Graphics& g)
     g.fillAll (Theme::panel);
     g.setColour (Theme::dimText);
     g.setFont (Theme::font (12.0f, true));
-    g.drawText ("PATTERNS", 10, 0, getWidth() - 20, 28, Justification::centredLeft);
+    g.drawText ("PATTERNS", 10, 0, getWidth() - 20, smallScreen ? 22 : 28, Justification::centredLeft);
 
-    g.setFont (Theme::font (11.0f));
-    g.drawFittedText ("Drag a pattern onto the song to place it.", 10, getHeight() - 26, getWidth() - 20, 22,
-                      Justification::centredLeft, 2);
+    if (! smallScreen)
+    {
+        g.setFont (Theme::font (11.0f));
+        g.drawFittedText ("Drag a pattern onto the song to place it.", 10, getHeight() - 26, getWidth() - 20, 22,
+                          Justification::centredLeft, 2);
+    }
 
     g.setColour (Theme::outline);
     g.drawVerticalLine (getWidth() - 1, 0.0f, (float) getHeight());
@@ -72,11 +96,12 @@ void PatternList::paint (Graphics& g)
 void PatternList::resized()
 {
     auto r = getLocalBounds().withTrimmedRight (1);
-    r.removeFromTop (28);
-    r.removeFromBottom (28);
+    r.removeFromTop (smallScreen ? 22 : 28);
+    r.removeFromBottom (smallScreen ? 4 : 28);
 
-    auto buttons2 = r.removeFromBottom (30).reduced (6, 3);
-    auto buttons1 = r.removeFromBottom (30).reduced (6, 3);
+    const auto buttonRow = smallScreen ? 34 : 30;
+    auto buttons2 = r.removeFromBottom (buttonRow).reduced (6, 3);
+    auto buttons1 = r.removeFromBottom (buttonRow).reduced (6, 3);
     const auto w1 = buttons1.getWidth() / 3;
     newButton.setBounds (buttons1.removeFromLeft (w1).reduced (2, 0));
     cloneButton.setBounds (buttons1.removeFromLeft (w1).reduced (2, 0));
@@ -140,7 +165,7 @@ void PatternList::selectedRowsChanged (int lastRowSelected)
 
 void PatternList::listBoxItemClicked (int row, const MouseEvent& e)
 {
-    if (e.mods.isPopupMenu())
+    if (e.mods.isPopupMenu() && ! longPress.hasFired())
         showRowMenu (row);
 }
 
@@ -152,9 +177,37 @@ void PatternList::listBoxItemDoubleClicked (int row, const MouseEvent&)
         renamePattern (patterns[(size_t) row]->id);
 }
 
+void PatternList::mouseDown (const MouseEvent& e)
+{
+    longPress.start (e.getEventRelativeTo (this));
+    isTouchGesture = Touch::isTouch (e);
+    touchDragsPattern = false;
+}
+
+void PatternList::mouseDrag (const MouseEvent& e)
+{
+    longPress.drag (e);
+
+    // (the row asks for the drag description before this is called, and keeps asking
+    // until it gets one)
+    if (isTouchGesture && ! touchDragsPattern && ! longPress.hasFired()
+         && e.getDistanceFromDragStart() > Touch::dragThreshold / 2
+         && std::abs (e.getDistanceFromDragStartX()) > std::abs (e.getDistanceFromDragStartY())
+         && ! list.getViewport()->isCurrentlyScrollingOnDrag())
+        touchDragsPattern = true;
+}
+
+void PatternList::mouseUp (const MouseEvent&)
+{
+    longPress.cancel();
+}
+
 var PatternList::getDragSourceDescription (const SparseSet<int>& rows)
 {
     auto& patterns = session.getProject().patterns;
+
+    if (longPress.hasFired() || (isTouchGesture && ! touchDragsPattern))
+        return {};
 
     if (rows.size() > 0 && isPositiveAndBelow (rows[0], (int) patterns.size()))
         return "pattern:" + String (patterns[(size_t) rows[0]]->id);
@@ -194,28 +247,15 @@ void PatternList::renamePattern (int patternId)
     if (p == nullptr)
         return;
 
-    auto* w = new AlertWindow ("Rename pattern", {}, MessageBoxIconType::NoIcon, this);
-    w->addTextEditor ("name", p->name);
-    w->addButton ("OK", 1, KeyPress (KeyPress::returnKey));
-    w->addButton ("Cancel", 0, KeyPress (KeyPress::escapeKey));
-
-    w->enterModalState (true, ModalCallbackFunction::create ([this, patternId, w] (int result)
+    AppFiles::askForText ("Rename pattern", {}, p->name, "OK", this, [this, patternId] (const String& name)
     {
-        if (result == 1)
+        if (auto* pat = session.getProject().findPattern (patternId))
         {
-            if (auto* pat = session.getProject().findPattern (patternId))
-            {
-                const auto name = w->getTextEditorContents ("name").trim();
-
-                if (name.isNotEmpty())
-                {
-                    pat->name = name;
-                    session.patternChanged (patternId);
-                    session.notify (Session::patternListChanged);
-                }
-            }
+            pat->name = name;
+            session.patternChanged (patternId);
+            session.notify (Session::patternListChanged);
         }
-    }), true);
+    });
 }
 
 void PatternList::showRowMenu (int row)
@@ -232,7 +272,7 @@ void PatternList::showRowMenu (int row)
     m.addItem ("Save to file...", [this, id] { session.selectPattern (id); savePattern(); });
     m.addSeparator();
     m.addItem ("Delete", [this, id] { session.selectPattern (id); deleteButton.triggerClick(); });
-    m.showMenuAsync (PopupMenu::Options().withMousePosition());
+    m.showMenuAsync (Touch::menuAtPointer());
 }
 
 void PatternList::savePattern()
@@ -246,18 +286,18 @@ void PatternList::savePattern()
     File dir (settings.getValue ("patternDir", File::getSpecialLocation (File::userDocumentsDirectory).getFullPathName()));
     const auto patternId = p->id;
 
-    chooser = std::make_unique<FileChooser> ("Save pattern", dir.getChildFile (File::createLegalFileName (p->name) + Session::patternExtension),
-                                             String ("*") + Session::patternExtension);
-    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::canSelectFiles
-                              | FileBrowserComponent::warnAboutOverwriting,
-                          [this, patternId] (const FileChooser& fc)
-    {
-        auto file = fc.getResult();
+    AppFiles::SaveRequest request;
+    request.title = "Save pattern";
+    request.suggestedFile = dir.getChildFile (File::createLegalFileName (p->name) + Session::patternExtension);
+    request.extension = Session::patternExtension;
+    request.mobileSubfolder = "Patterns";
+    request.parent = this;
 
+    AppFiles::chooseFileToSave (chooser, request, [this, patternId] (const File& file)
+    {
         if (file == File())
             return;
 
-        file = file.withFileExtension (Session::patternExtension);
         session.getPluginManager().getSettings().setValue ("patternDir", file.getParentDirectory().getFullPathName());
 
         const auto result = session.exportPattern (patternId, file);
@@ -272,14 +312,19 @@ void PatternList::loadPattern()
     auto& settings = session.getPluginManager().getSettings();
     File dir (settings.getValue ("patternDir", File::getSpecialLocation (File::userDocumentsDirectory).getFullPathName()));
 
-    chooser = std::make_unique<FileChooser> ("Load pattern", dir, String ("*") + Session::patternExtension);
-    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles
-                              | FileBrowserComponent::canSelectMultipleItems,
-                          [this] (const FileChooser& fc)
+    AppFiles::OpenRequest request;
+    request.title = "Load pattern";
+    request.initialFolder = dir;
+    request.wildcard = String ("*") + Session::patternExtension;
+    request.multipleFiles = true;
+    request.appFileType = true;
+    request.copyInto = AppFiles::getDocumentsFolder().getChildFile ("Patterns");
+
+    AppFiles::chooseFilesToOpen (chooser, request, [this] (const Array<File>& files)
     {
         StringArray problems;
 
-        for (auto& file : fc.getResults())
+        for (auto& file : files)
         {
             session.getPluginManager().getSettings().setValue ("patternDir", file.getParentDirectory().getFullPathName());
             const auto result = session.importPattern (file, problems);

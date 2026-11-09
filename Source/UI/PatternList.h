@@ -2,6 +2,7 @@
 
 #include "Session.h"
 #include "UI/Theme.h"
+#include "UI/Touch.h"
 
 /** The pattern library on the left: create / duplicate / delete / save / load patterns,
     and drag them onto the song timeline. */
@@ -15,6 +16,12 @@ public:
 
     void paint (Graphics&) override;
     void resized() override;
+    void setSmallScreen (bool);
+
+    // mouse events of the list rows (for touch: long press = menu)
+    void mouseDown (const MouseEvent&) override;
+    void mouseDrag (const MouseEvent&) override;
+    void mouseUp (const MouseEvent&) override;
 
     std::function<void (const String&)> onError;
 
@@ -36,6 +43,10 @@ private:
 
     Session& session;
     ListBox list;
+    bool smallScreen = false;
+    LongPress longPress;
+    // with a finger, moving sideways drags a pattern to the song; up and down scrolls the list
+    bool isTouchGesture = false, touchDragsPattern = false;
     TextButton newButton { "New" }, cloneButton { "Clone" }, deleteButton { "Delete" },
                saveButton { "Save..." }, loadButton { "Load..." };
     std::unique_ptr<FileChooser> chooser;

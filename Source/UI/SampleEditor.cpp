@@ -1,4 +1,5 @@
 #include "UI/SampleEditor.h"
+#include "UI/AppFiles.h"
 #include "Audio/Channel.h"
 #include "Audio/SampleEditing.h"
 #include "UI/EffectRow.h"
@@ -15,8 +16,14 @@ namespace
 
 //==============================================================================
 WaveformView::WaveformView()
+    : longPress ([this] (Point<int>)
+      {
+          if (pressedRegion >= 0 && onRegionMenu)
+              onRegionMenu (pressedRegion);
+      })
 {
     setWantsKeyboardFocus (false);
+    setViewportIgnoreDragFlag (true);   // dragging selects (also inside a scrollable window on phones)
 }
 
 void WaveformView::setSample (std::shared_ptr<const SampleData> s, Colour c)
@@ -322,6 +329,7 @@ void WaveformView::mouseDown (const MouseEvent& e)
         return;
 
     const auto frame = clampFrame (xToFrame ((float) e.x));
+    pressedRegion = -1;
 
     // clicking a slice marker in the ruler selects (or, with right-click, edits) that slice
     if (e.y < rulerHeight)
@@ -336,6 +344,8 @@ void WaveformView::mouseDown (const MouseEvent& e)
             if (e.mods.isPopupMenu() && onRegionMenu)
                 onRegionMenu (index);
 
+            pressedRegion = index;
+            longPress.start (e);
             return;
         }
     }
@@ -361,7 +371,9 @@ void WaveformView::mouseDown (const MouseEvent& e)
 
 void WaveformView::mouseDrag (const MouseEvent& e)
 {
-    if (sample == nullptr || e.mouseWasClicked())
+    longPress.drag (e);
+
+    if (sample == nullptr || e.mouseWasClicked() || longPress.hasFired())
         return;
 
     const auto frame = clampFrame (xToFrame ((float) jlimit (0, getWidth(), e.x)));
@@ -374,6 +386,8 @@ void WaveformView::mouseDrag (const MouseEvent& e)
 
 void WaveformView::mouseUp (const MouseEvent&)
 {
+    longPress.cancel();
+
     // a tiny drag is just a click
     if (! selection.isEmpty() && frameToX (selection.getEnd()) - frameToX (selection.getStart()) < 2.0f)
     {
@@ -983,13 +997,16 @@ void SampleEditor::exportWav()
     if (c == nullptr || c->sample == nullptr)
         return;
 
-    auto initial = c->sampleFile.getSiblingFile (File::createLegalFileName (c->name) + " (edited).wav");
-    chooser = std::make_unique<FileChooser> ("Export sample", initial, "*.wav");
-    chooser->launchAsync (FileBrowserComponent::saveMode | FileBrowserComponent::canSelectFiles
-                              | FileBrowserComponent::warnAboutOverwriting,
-                          [safe = SafePointer<SampleEditor> (this)] (const FileChooser& fc)
+    AppFiles::SaveRequest request;
+    request.title = "Export sample";
+    request.suggestedFile = c->sampleFile.getSiblingFile (File::createLegalFileName (c->name) + " (edited).wav");
+    request.extension = ".wav";
+    request.mobileSubfolder = "Exports";
+    request.parent = this;
+
+    AppFiles::chooseFileToSave (chooser, request, [safe = SafePointer<SampleEditor> (this)] (const File& file)
     {
-        if (safe == nullptr || fc.getResult() == File())
+        if (safe == nullptr || file == File())
             return;
 
         auto* ch = safe->getChannel();
@@ -997,27 +1014,28 @@ void SampleEditor::exportWav()
         if (ch == nullptr || ch->sample == nullptr)
             return;
 
-        const auto file = fc.getResult().withFileExtension (".wav");
         const auto r = SampleEditing::writeWav (*ch->sample, file);
-        safe->setStatus (r.wasOk() ? "Exported " + file.getFullPathName() : r.getErrorMessage());
+        safe->setStatus (r.wasOk() ? "Exported " + AppFiles::describeLocation (file) : r.getErrorMessage());
+
+        if (r.wasOk())
+            AppFiles::offerToShare (file, safe.getComponent());
     });
 }
 
 //==============================================================================
-class SampleEditorManager::Window : public DocumentWindow
+class SampleEditorManager::Window : public AppWindow
 {
 public:
     Window (SampleEditorManager& m, int id)
-        : DocumentWindow ("Sample Editor", Theme::background, DocumentWindow::allButtons),
+        : AppWindow ("Sample Editor", DocumentWindow::allButtons),
           manager (m), channelId (id)
     {
         auto* editor = new SampleEditor (m.session, m.pluginWindows, id, m.sampler);
         editor->onCloseRequested = [this] { requestClose(); };
-        setUsingNativeTitleBar (true);
-        setContentOwned (editor, true);
+        setScrollableContent (editor, 700, 460);   // phones: scroll to reach everything
         setResizable (true, false);
         setResizeLimits (700, 460, 4000, 3000);
-        WindowPlacement::fitOnScreen (*this, getWidth(), getHeight());
+        placeOnScreen (editor->getWidth(), editor->getHeight());
 
         if (auto* c = m.session.getProject().findChannel (id))
             setName ("Sample Editor - " + c->name);

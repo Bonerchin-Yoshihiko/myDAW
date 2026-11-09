@@ -1,24 +1,32 @@
 #include "UI/MainComponent.h"
+#include "UI/Touch.h"
 #include "UI/WindowPlacement.h"
 
 #include <iostream>
 
-class MainWindow : public DocumentWindow
+class MainWindow : public AppWindow
 {
 public:
     explicit MainWindow (AppCore& c)
-        : DocumentWindow ("myDAW", Theme::background, DocumentWindow::allButtons), core (c)
+        : AppWindow ("myDAW", Touch::isMobile() ? 0 : DocumentWindow::allButtons), core (c)
     {
-        setUsingNativeTitleBar (true);
         content = new MainComponent (core);
-        setContentOwned (content, true);
-        setResizable (true, false);
-        setResizeLimits (860, 560, 10000, 10000);
+        setContentOwned (content, ! Touch::isMobile());
 
-        // Fit the window (title bar included) on the screen: on a small or scaled display
-        // (e.g. 150 % on a 1920x1080 laptop) the preferred size would not fit.
-        if (! WindowPlacement::restoreState (*this, core.properties.getUserSettings()->getValue ("mainWindowBounds")))
-            WindowPlacement::fitOnScreen (*this, 1360, 860);
+        if (Touch::isMobile())
+        {
+            placeOnScreen (0, 0);   // full screen
+        }
+        else
+        {
+            setResizable (true, false);
+            setResizeLimits (860, 560, 10000, 10000);
+
+            // Fit the window (title bar included) on the screen: on a small or scaled display
+            // (e.g. 150 % on a 1920x1080 laptop) the preferred size would not fit.
+            if (! WindowPlacement::restoreState (*this, core.properties.getUserSettings()->getValue ("mainWindowBounds")))
+                WindowPlacement::fitOnScreen (*this, 1360, 860);
+        }
 
         content->onTitleChanged = [this] { setName (content->getWindowTitle()); };
         setName (content->getWindowTitle());
@@ -29,7 +37,8 @@ public:
 
     ~MainWindow() override
     {
-        core.properties.getUserSettings()->setValue ("mainWindowBounds", WindowPlacement::getStateString (*this));
+        if (rememberBounds)
+            core.properties.getUserSettings()->setValue ("mainWindowBounds", WindowPlacement::getStateString (*this));
     }
 
     void closeButtonPressed() override
@@ -39,6 +48,7 @@ public:
 
     AppCore& core;
     MainComponent* content = nullptr;
+    bool rememberBounds = ! Touch::isMobile();
 };
 
 //==============================================================================
@@ -71,6 +81,25 @@ public:
             {
                 mainWindow->content->openFile (File (a));
                 break;
+            }
+        }
+
+        // phones: carry on where the user left off (iOS may have ended the app in the background)
+        if (Touch::isMobile())
+            mainWindow->content->reopenLastProject();
+
+        // Developer helper: lay the window out at a given size, e.g. "--window-size 750x369" for
+        // the area an iPhone 15 leaves for the app in landscape (to check the phone layout).
+        if (const auto index = args.indexOf ("--window-size"); index >= 0 && index + 1 < args.size())
+        {
+            const auto w = args[index + 1].upToFirstOccurrenceOf ("x", false, true).getIntValue();
+            const auto h = args[index + 1].fromFirstOccurrenceOf ("x", false, true).getIntValue();
+
+            if (w > 0 && h > 0)
+            {
+                mainWindow->rememberBounds = false;
+                mainWindow->setResizeLimits (w, h, 10000, 10000);
+                mainWindow->setSize (w, h);
             }
         }
 
@@ -113,6 +142,16 @@ public:
     }
 
     void anotherInstanceStarted (const String&) override {}
+
+    // iOS: the app may be ended while it is in the background, without being asked to quit
+    void suspended() override
+    {
+        if (core != nullptr)
+            core->saveAudioSettings();
+
+        if (mainWindow != nullptr)
+            mainWindow->content->autoSave();
+    }
 
 private:
     void renderFromCommandLine (const StringArray& args, int index)

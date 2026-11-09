@@ -48,12 +48,21 @@ std::shared_ptr<SampleData> SampleData::load (AudioFormatManager& formats, const
     return data;
 }
 
+// Apple's own decoder (Core Audio) also reads AAC / Apple Lossless files such as voice memos
 String SampleData::getWildcard()
 {
+   #if JUCE_MAC || JUCE_IOS
+    return "*.wav;*.mp3;*.aif;*.aiff;*.flac;*.ogg;*.m4a;*.aac;*.caf";
+   #else
     return "*.wav;*.mp3;*.aif;*.aiff;*.flac;*.ogg";
+   #endif
 }
 
 bool SampleData::isSupportedFile (const File& f)
 {
+   #if JUCE_MAC || JUCE_IOS
+    return f.hasFileExtension ("wav;mp3;aif;aiff;flac;ogg;m4a;aac;caf");
+   #else
     return f.hasFileExtension ("wav;mp3;aif;aiff;flac;ogg");
+   #endif
 }

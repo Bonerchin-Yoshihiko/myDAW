@@ -62,3 +62,37 @@ jobs:
         with:
           name: myDAW-${{ matrix.name }}
           path: dist/
+
+  ios:
+    name: iOS
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS
+
+      # Unsigned build for real iPhones / iPads. Sideloading tools (Sideloadly, AltStore, ...)
+      # sign it with the user's own Apple ID when they install it.
+      - name: Build
+        run: |
+          cmake --build build-ios --config Release --target MyDAW -- \
+            -sdk iphoneos -quiet -jobs 4 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS=""
+
+      - name: Package
+        run: |
+          APP=$(find build-ios -type d -name "myDAW.app" -path "*Release-iphoneos*" | head -n 1)
+          echo "App bundle: $APP"
+          test -n "$APP"
+          plutil -p "$APP/Info.plist"
+          mkdir -p dist/Payload
+          cp -R "$APP" dist/Payload/
+          (cd dist && zip -qry myDAW-iOS-unsigned.ipa Payload && rm -rf Payload)
+          cp README.md dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: myDAW-iOS
+          path: dist/

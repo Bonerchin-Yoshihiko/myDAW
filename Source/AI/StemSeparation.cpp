@@ -144,6 +144,11 @@ namespace
             const auto memoryMB = SystemStats::getMemorySizeInMegabytes();
             const auto byMemory = memoryMB > 0 ? (memoryMB / 2 - 500) / 1700 : 2;
             numThreads = jlimit (1, 8, jmin (SystemStats::getNumPhysicalCpus(), byMemory));
+
+           #if JUCE_IOS
+            // iOS ends an app that uses much more than half of the RAM: one part at a time
+            numThreads = 1;
+           #endif
         }
 
         const auto minPart = (int) (modelSampleRate * 6.0);

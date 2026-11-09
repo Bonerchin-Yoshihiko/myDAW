@@ -2,6 +2,7 @@
 #include "Audio/Channel.h"
 #include "Audio/SampleEditing.h"
 #include "Audio/Slicing.h"
+#include "UI/AppFiles.h"
 #include "UI/WindowPlacement.h"
 
 namespace
@@ -596,14 +597,17 @@ void SamplerComponent::scrollBarMoved (ScrollBar*, double newRangeStart)
 void SamplerComponent::openFileChooser()
 {
     const auto dirPath = session.getPluginManager().getSettings().getValue ("samplerDir");
-    const auto dir = File::isAbsolutePath (dirPath) ? File (dirPath) : File::getSpecialLocation (File::userMusicDirectory);
 
-    chooser = std::make_unique<FileChooser> ("Open audio file for sampling", dir, SampleData::getWildcard());
-    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
-                          [safe = SafePointer<SamplerComponent> (this)] (const FileChooser& fc)
+    AppFiles::OpenRequest request;
+    request.title = "Open audio file for sampling";
+    request.initialFolder = File::isAbsolutePath (dirPath) ? File (dirPath) : File::getSpecialLocation (File::userMusicDirectory);
+    request.wildcard = SampleData::getWildcard();
+    request.copyInto = AppFiles::getDocumentsFolder().getChildFile ("Imported Audio");
+
+    AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<SamplerComponent> (this)] (const Array<File>& files)
     {
-        if (safe != nullptr && fc.getResult() != File())
-            safe->loadFile (fc.getResult());
+        if (safe != nullptr && ! files.isEmpty())
+            safe->loadFile (files.getFirst());
     });
 }
 
@@ -782,7 +786,7 @@ void SamplerComponent::showSliceMenu (int index)
             updateButtons();
         }
     });
-    m.showMenuAsync (PopupMenu::Options().withMousePosition());
+    m.showMenuAsync (Touch::menuAtPointer());
 }
 
 std::shared_ptr<Channel> SamplerComponent::createSample (Range<int> frames, const String& suffix)
@@ -868,7 +872,8 @@ void SamplerComponent::showSeparationOptions()
     };
 
     auto* top = getTopLevelComponent();
-    CallOutBox::launchAsynchronously (std::move (panel), top->getLocalArea (&separateButton, separateButton.getLocalBounds()), top);
+    CallOutBox::launchAsynchronously (WindowPlacement::limitToScreen (std::move (panel), *top),
+                                      top->getLocalArea (&separateButton, separateButton.getLocalBounds()), top);
 }
 
 void SamplerComponent::startSeparation (SeparationSettings settings)
@@ -1000,35 +1005,43 @@ void SamplerComponent::finishSeparation()
 
 void SamplerComponent::loadModelFromFile()
 {
-    chooser = std::make_unique<FileChooser> ("Choose a Demucs model file (ggml-model-htdemucs-...-f16.bin)",
-                                             File::getSpecialLocation (File::userHomeDirectory).getChildFile ("Downloads"), "*.bin");
-    chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
-                          [safe = SafePointer<SamplerComponent> (this)] (const FileChooser& fc)
+    AppFiles::OpenRequest request;
+    request.title = "Choose a Demucs model file (ggml-model-htdemucs-...-f16.bin)";
+    request.initialFolder = File::getSpecialLocation (File::userHomeDirectory).getChildFile ("Downloads");
+    request.wildcard = "*.bin";
+    request.appFileType = true;
+    request.copyInto = File::getSpecialLocation (File::tempDirectory).getChildFile ("myDAW model");
+
+    AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<SamplerComponent> (this), temp = request.copyInto] (const Array<File>& files)
     {
-        if (safe == nullptr || fc.getResult() == File())
+        if (safe == nullptr || files.isEmpty())
             return;
 
+        const auto picked = files.getFirst();
+
         Stems::ModelType type;
-        const auto result = Stems::installModelFile (fc.getResult(), &type);
+        const auto result = Stems::installModelFile (picked, &type);
         safe->setStatus (result.wasOk() ? "Model installed: " + Stems::getModelInfo (type).displayName : result.getErrorMessage());
+
+        if (picked.isAChildOf (temp))   // a copy made to read it (iOS)
+            picked.deleteFile();
     });
 }
 
 //==============================================================================
-class SamplerManager::Window : public DocumentWindow
+class SamplerManager::Window : public AppWindow
 {
 public:
     explicit Window (Session& session)
-        : DocumentWindow ("Sampler", Theme::background, DocumentWindow::allButtons)
+        : AppWindow ("Sampler", DocumentWindow::allButtons)
     {
         auto* content = new SamplerComponent (session);
         component = content;
         content->onTitleChanged = [this] (const String& t) { setName (t); };
-        setUsingNativeTitleBar (true);
-        setContentOwned (content, true);
+        setScrollableContent (content, 700, 420);   // phones: scroll to reach everything
         setResizable (true, false);
         setResizeLimits (760, 460, 4000, 3000);
-        WindowPlacement::fitOnScreen (*this, getWidth(), getHeight());
+        placeOnScreen (content->getWidth(), content->getHeight());
     }
 
     void closeButtonPressed() override

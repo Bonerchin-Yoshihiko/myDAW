@@ -1,8 +1,17 @@
 cmake_minimum_required(VERSION 3.22)
 
-# macOS: universal binary (Apple Silicon + Intel). Must be set before project(); ignored elsewhere.
-set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
-set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures")
+# iPhone / iPad build (needs a Mac with Xcode):
+#   cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS
+#   cmake --build build-ios --config Release -- -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(MYDAW_IOS TRUE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iOS version")
+else()
+    set(MYDAW_IOS FALSE)
+    # macOS: universal binary (Apple Silicon + Intel). Must be set before project(); ignored elsewhere.
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures")
+endif()
 
 project(MyDAW VERSION 0.1.0 LANGUAGES C CXX)
 
@@ -68,6 +77,8 @@ set(MYDAW_CORE_SOURCES
 
 set(MYDAW_UI_SOURCES
     Source/UI/Theme.cpp
+    Source/UI/Touch.cpp
+    Source/UI/AppFiles.cpp
     Source/UI/WindowPlacement.cpp
     Source/UI/PluginWindows.cpp
     Source/UI/TransportBar.cpp
@@ -81,12 +92,17 @@ set(MYDAW_UI_SOURCES
     Source/UI/SongEditor.cpp
     Source/UI/MainComponent.cpp)
 
+# VST3 hosting is switched off by JUCE on iOS; there the app hosts AUv3 plug-ins instead.
 set(MYDAW_DEFINITIONS
     JUCE_WEB_BROWSER=0
     JUCE_USE_MP3AUDIOFORMAT=1
     JUCE_PLUGINHOST_VST3=1
     JUCE_PLUGINHOST_AU=1
     JUCE_STRICT_REFCOUNTEDPOINTER=1)
+
+if(MYDAW_IOS)
+    list(APPEND MYDAW_DEFINITIONS JUCE_CONTENT_SHARING=1)   # the share sheet for exported files
+endif()
 
 # JACK support on Linux (libjack is loaded at run time; only the headers are needed to build)
 if(UNIX AND NOT APPLE)
@@ -109,7 +125,18 @@ juce_add_gui_app(MyDAW
     BUNDLE_ID "com.mydaw.app"
     VERSION ${PROJECT_VERSION}
     NEEDS_CURL TRUE                    # model download on Linux
-    MICROPHONE_PERMISSION_ENABLED FALSE)
+    MICROPHONE_PERMISSION_ENABLED FALSE
+    # iOS: landscape on iPhone (the editors need the width), any orientation on iPad;
+    # projects, samples and exports live in the app's Documents folder, which the
+    # Files app shows under "On My iPhone > myDAW".
+    IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+    IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
+                             UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+    TARGETED_DEVICE_FAMILY "1,2"
+    FILE_SHARING_ENABLED TRUE
+    DOCUMENT_BROWSER_ENABLED TRUE
+    STATUS_BAR_HIDDEN TRUE
+    REQUIRES_FULL_SCREEN TRUE)
 
 target_sources(MyDAW PRIVATE ${MYDAW_CORE_SOURCES} ${MYDAW_UI_SOURCES} Source/Main.cpp)
 
@@ -134,7 +161,11 @@ target_link_libraries(MyDAW
 # ---------------------------------------------------------------------------
 option(MYDAW_BUILD_TESTS "Build the myDAW integration tests" OFF)
 
-if(MYDAW_BUILD_TESTS)
+if(MYDAW_BUILD_TESTS AND MYDAW_IOS)
+    message(STATUS "The integration tests are a command-line app and are not built for iOS")
+endif()
+
+if(MYDAW_BUILD_TESTS AND NOT MYDAW_IOS)
     juce_add_console_app(MyDAWTests PRODUCT_NAME "myDAWTests" NEEDS_CURL TRUE)
     target_sources(MyDAWTests PRIVATE ${MYDAW_CORE_SOURCES} Tests/IntegrationTests.cpp)
     target_include_directories(MyDAWTests PRIVATE Source)

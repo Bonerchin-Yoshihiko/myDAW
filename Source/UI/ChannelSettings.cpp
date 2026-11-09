@@ -1,5 +1,7 @@
 #include "UI/ChannelSettings.h"
+#include "UI/AppFiles.h"
 #include "UI/EffectRow.h"
+#include "UI/WindowPlacement.h"
 
 
 void ChannelSettings::show (Session& session, PluginWindowManager& windows, int channelId, Component& target,
@@ -7,7 +9,8 @@ void ChannelSettings::show (Session& session, PluginWindowManager& windows, int 
 {
     auto content = std::make_unique<ChannelSettings> (session, windows, channelId, sampleEditors);
     auto* top = target.getTopLevelComponent();
-    CallOutBox::launchAsynchronously (std::move (content), top->getLocalArea (&target, target.getLocalBounds()), top);
+    CallOutBox::launchAsynchronously (WindowPlacement::limitToScreen (std::move (content), *top),
+                                      top->getLocalArea (&target, target.getLocalBounds()), top);
 }
 
 ChannelSettings::ChannelSettings (Session& s, PluginWindowManager& w, int id, SampleEditorManager* e)
@@ -111,18 +114,22 @@ ChannelSettings::ChannelSettings (Session& s, PluginWindowManager& w, int id, Sa
                 if (ch == nullptr)
                     return;
 
-                chooser = std::make_unique<FileChooser> ("Replace sample", ch->sampleFile, SampleData::getWildcard());
-                chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
-                                      [this] (const FileChooser& fc)
-                {
-                    auto* chan = getChannel();
+                AppFiles::OpenRequest request;
+                request.title = "Replace sample";
+                request.initialFolder = ch->sampleFile;
+                request.wildcard = SampleData::getWildcard();
+                request.copyInto = AppFiles::getDocumentsFolder().getChildFile ("Imported Audio");
 
-                    if (chan == nullptr || fc.getResult() == File())
+                AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<ChannelSettings> (this)] (const Array<File>& files)
+                {
+                    auto* chan = safe != nullptr ? safe->getChannel() : nullptr;
+
+                    if (chan == nullptr || files.isEmpty())
                         return;
 
                     String error;
 
-                    if (! session.replaceSample (*chan, fc.getResult(), error))
+                    if (! safe->session.replaceSample (*chan, files.getFirst(), error))
                         AlertWindow::showAsync (MessageBoxOptions().withIconType (MessageBoxIconType::WarningIcon)
                                                                    .withTitle ("Replace sample").withMessage (error).withButton ("OK"),
                                                 nullptr);
