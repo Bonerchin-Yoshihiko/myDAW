@@ -141,19 +141,47 @@ GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** から
 
 ### インストール方法
 
-App Store には出していないので、次のどちらかで入れます。
+App Store には出していないので、次のどちらかで入れます。おすすめは **A（SideStore、無料）** です。
 
-**A. Mac が無い場合（Windows パソコンでも可）: ビルド済みのアプリを自分の Apple ID で署名して入れる**
+**A. SideStore で入れる（無料の Apple ID でOK・Mac 不要）**
 
-1. GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** の `myDAW-iOS` をダウンロードして展開し、
-   `myDAW-iOS-unsigned.ipa` を取り出します。
-2. [Sideloadly](https://sideloadly.io) や [AltStore](https://altstore.io) などのサイドロードツールをパソコンに入れ、
-   iPhone を USB でつないで、その `.ipa` を自分の Apple ID で署名してインストールします。
-3. iPhone の「設定」→「一般」→「VPN とデバイス管理」で自分の Apple ID を「信頼」します
-   （iOS 16 以降は「設定」→「プライバシーとセキュリティ」→「デベロッパモード」も ON にします）。
+無料の Apple ID で入れたアプリは 7 日で期限が切れますが、[SideStore](https://sidestore.io) を使うと
+iPhone だけで（パソコン無しで）期限を延ばせて、ショートカットで自動化もできます。パソコンが要るのは最初の準備の 1 回だけです。
 
-> 無料の Apple ID で署名したアプリは **7 日で起動できなくなります**。その場合は同じ手順でもう一度入れ直してください
-> （作ったプロジェクトは消えません）。有料の Apple Developer Program（年 99 ドル）なら 1 年有効で、TestFlight で配ることもできます。
+*最初の準備（1 回だけ、Windows / Mac / Linux のパソコンを使う）*
+
+1. パソコンの準備: Windows は [iTunes](https://apple.co/ms) を入れておきます（iPhone と USB でやり取りするため）。
+   Mac はそのままで大丈夫です（Linux は `usbmuxd` が必要です）。
+2. iPhone に App Store から **LocalDevVPN** を入れます（SideStore がアプリを入れるときに使う、iPhone の中だけの VPN です）。
+3. パソコンに **iloader** を入れます。公式の配布元は [iloader.app](https://iloader.app) と
+   [GitHub（nab138/iloader）](https://github.com/nab138/iloader) だけです。
+4. iPhone を USB でつなぎ（初めてなら iPhone 側で「このコンピュータを信頼」）、iloader を開いて Apple ID でサインインし、
+   **Install SideStore** を選びます。必要な設定（ペアリングファイルなど）は iloader が自動でやってくれます。
+5. iPhone の「設定」→「一般」→「VPN とデバイス管理」で自分の Apple ID を「信頼」し、
+   「設定」→「プライバシーとセキュリティ」→「**デベロッパモード**」を ON にします（再起動します）。
+6. SideStore を開きます。Apple ID を聞かれたら、同じ Apple ID でサインインします。
+
+*myDAW を入れる（ここからは iPhone だけ）*
+
+1. GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** の `myDAW-iOS` をダウンロードし、
+   「ファイル」アプリで zip をタップして展開すると `myDAW-iOS-unsigned.ipa` が出てきます
+   （パソコンでダウンロードして、AirDrop や iCloud Drive で iPhone に送っても OK です）。
+2. **LocalDevVPN** を開いて「Connect」します。
+3. **SideStore** の「My Apps」タブ → 左上の **＋** → `myDAW-iOS-unsigned.ipa` を選びます。ホーム画面に myDAW が出てきます。
+
+新しいバージョンにするときも同じ手順です（上書きされ、作ったプロジェクトは残ります）。
+
+*7 日ごとの更新（ここが大事）*
+
+- **LocalDevVPN を Connect** してから、SideStore の「My Apps」で **Refresh All** を押します。期限が来る前なら何度押しても大丈夫です。
+- **自動にする**: 「ショートカット」アプリ →「オートメーション」→「時刻」（例: 毎日夜中）→ アクションに SideStore の
+  「**Refresh All Apps**」を追加し、「実行前に尋ねる」をオフにします。実行するときに LocalDevVPN がつながっている必要があります。
+- **期限を切らしてしまうと SideStore 自身も起動しなくなり**、もう一度パソコンで「最初の準備」の 4 からやり直しになります
+  （作ったプロジェクトは消えません）。自動化しておくのがおすすめです。
+- 無料の Apple ID では、SideStore 自身を含めて**同時に 3 本まで**しか入れられません。
+
+> SideStore の最新の手順やトラブルのときは [SideStore の公式ドキュメント](https://docs.sidestore.io) を見てください。
+> 7 日ごとの更新そのものを無くしたいときは、有料の Apple Developer Program（年 99 ドル）で 1 年有効にする方法もあります。
 
 **B. Mac と Xcode がある場合: 自分でビルドして入れる**
 
@@ -164,6 +192,7 @@ open build-ios/MyDAW.xcodeproj
 
 Xcode で `MyDAW` ターゲットの「Signing & Capabilities」で自分の Team を選び、iPhone をつないで ▶ で実行します
 （Bundle Identifier が使えないと言われたら `com.mydaw.app` を自分だけの名前に変えます）。
+無料の Apple ID だと、こちらも 7 日で期限が切れます（そのたびに Xcode から入れ直し）。
 
 ### iPhone での操作（パソコン版との違い）
 
