@@ -70,8 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # the build number grows with every run, so SideStore offers each new build as an update
       - name: Configure
-        run: cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS
+        run: cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DMYDAW_BUILD_NUMBER=${{ github.run_number }}
 
       # Unsigned build for real iPhones / iPads. Sideloading tools (SideStore, AltStore, ...)
       # sign it with the user's own Apple ID when they install it.
@@ -83,7 +84,6 @@ jobs:
 
       - name: Package
         run: |
-          find build-ios -type d -name "*.app" -prune
           APP=$(find build-ios -type d -name "myDAW.app" -prune | grep -v '\.build/' | head -n 1)
           echo "App bundle: $APP"
           test -n "$APP"
@@ -91,10 +91,71 @@ jobs:
           file "$APP/myDAW"
           mkdir -p dist/Payload
           cp -R "$APP" dist/Payload/
-          (cd dist && zip -qry myDAW-iOS-unsigned.ipa Payload && rm -rf Payload)
+          (cd dist && zip -qry myDAW-iOS.ipa Payload && rm -rf Payload)
+          python3 .github/scripts/make_sidestore_source.py --app "$APP" --ipa dist/myDAW-iOS.ipa \
+            --repo "${{ github.repository }}" --tag "build-${{ github.run_number }}" --sha "${{ github.sha }}" \
+            --out dist/source.json
           cp README.md dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: myDAW-iOS
           path: dist/
+
+  # Publishes every platform's build as a GitHub release (downloadable without a GitHub
+  # account) and the SideStore source, on pushes to the default branch or when started by
+  # hand (Actions > Build > Run workflow). The source URL always points at the newest release:
+  #   https://github.com/<owner>/<repo>/releases/latest/download/source.json
+  release:
+    name: Release
+    needs: [build, ios]
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect files
+        run: |
+          mkdir release
+          cp artifacts/myDAW-Windows/myDAW.exe release/myDAW-Windows.exe
+          cp artifacts/myDAW-macOS/myDAW-macOS.zip release/myDAW-macOS.zip
+          chmod +x artifacts/myDAW-Linux/myDAW
+          tar -czf release/myDAW-Linux.tar.gz -C artifacts/myDAW-Linux myDAW
+          cp artifacts/myDAW-iOS/myDAW-iOS.ipa release/myDAW-iOS.ipa
+          cp artifacts/myDAW-iOS/source.json release/source.json
+          ls -la release
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: build-${{ github.run_number }}
+        run: |
+          SOURCE_URL="https://github.com/${GH_REPO}/releases/latest/download/source.json"
+          cat > notes.md <<NOTES
+          Commit ${GITHUB_SHA::7} からの自動ビルドです（ブランチ: ${GITHUB_REF_NAME}）。
+
+          | ファイル | 対象 |
+          | --- | --- |
+          | myDAW-Windows.exe | Windows |
+          | myDAW-macOS.zip | macOS（展開して myDAW.app） |
+          | myDAW-Linux.tar.gz | Linux |
+          | myDAW-iOS.ipa | iPhone / iPad（SideStore などで署名して入れる） |
+
+          **SideStore のソース**（追加すると新しいビルドが出たときに SideStore から更新できます）:
+          ${SOURCE_URL}
+
+          使い方は README の「iPhone / iPad で使う」を見てください。
+          NOTES
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --target "$GITHUB_SHA" --title "myDAW build ${GITHUB_RUN_NUMBER}" \
+              --notes-file notes.md --latest
+          fi

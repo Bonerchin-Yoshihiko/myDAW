@@ -119,11 +119,17 @@ set(MYDAW_JUCE_MODULES
     juce::juce_audio_devices
     juce::juce_gui_extra)
 
+# A build number that grows with every CI build (CFBundleVersion), so SideStore sees new builds
+# of the same version as updates. Defaults to the version.
+set(MYDAW_BUILD_NUMBER "${PROJECT_VERSION}" CACHE STRING "Build number (CFBundleVersion on Apple platforms)")
+
 juce_add_gui_app(MyDAW
     PRODUCT_NAME "myDAW"
     COMPANY_NAME "myDAW"
     BUNDLE_ID "com.mydaw.app"
     VERSION ${PROJECT_VERSION}
+    BUILD_VERSION ${MYDAW_BUILD_NUMBER}
+    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/docs/icon.png"
     NEEDS_CURL TRUE                    # model download on Linux
     MICROPHONE_PERMISSION_ENABLED FALSE
     # iOS: landscape on iPhone (the editors need the width), any orientation on iPad;

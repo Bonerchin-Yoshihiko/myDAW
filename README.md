@@ -122,9 +122,18 @@ C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux と **iPhone / i
 
 ## ダウンロード
 
-GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** から
-`myDAW-Windows`（`myDAW.exe`）/ `myDAW-macOS`（`myDAW.app`）/ `myDAW-Linux` / `myDAW-iOS`（iPhone / iPad 用、
-[入れ方](#iphone--ipad-で使う)）をダウンロードできます。
+[**Releases**](https://github.com/Bonerchin-Yoshihiko/myDAW/releases/latest) の最新版から、GitHub のアカウント無しでダウンロードできます。
+
+| ファイル | 対象 |
+| --- | --- |
+| `myDAW-Windows.exe` | Windows |
+| `myDAW-macOS.zip` | macOS（展開すると `myDAW.app`） |
+| `myDAW-Linux.tar.gz` | Linux |
+| `myDAW-iOS.ipa` | iPhone / iPad（[入れ方](#iphone--ipad-で使う)） |
+
+Releases はデフォルトブランチ（`claude/mydaw-initial`）に push したときに自動で作られます。ほかのブランチのビルドを
+リリースしたいときは、GitHub の **Actions** → **Build** →「Run workflow」でブランチを選んで実行します。
+各ビルドは Actions の **Artifacts** からも（GitHub にログインして）ダウンロードできます。
 
 - macOS: 署名していないアプリなので、初回は右クリック →「開く」で起動してください。
 - Windows: SmartScreen が出たら「詳細情報」→「実行」。
@@ -161,15 +170,21 @@ iPhone だけで（パソコン無しで）期限を延ばせて、ショート�
    「設定」→「プライバシーとセキュリティ」→「**デベロッパモード**」を ON にします（再起動します）。
 6. SideStore を開きます。Apple ID を聞かれたら、同じ Apple ID でサインインします。
 
-*myDAW を入れる（ここからは iPhone だけ）*
+*myDAW を入れる（ここからは iPhone だけ）: SideStore に myDAW のソースを追加する*
 
-1. GitHub の **Actions** タブ → 最新の「Build」→ **Artifacts** の `myDAW-iOS` をダウンロードし、
-   「ファイル」アプリで zip をタップして展開すると `myDAW-iOS-unsigned.ipa` が出てきます
-   （パソコンでダウンロードして、AirDrop や iCloud Drive で iPhone に送っても OK です）。
-2. **LocalDevVPN** を開いて「Connect」します。
-3. **SideStore** の「My Apps」タブ → 左上の **＋** → `myDAW-iOS-unsigned.ipa` を選びます。ホーム画面に myDAW が出てきます。
+1. **LocalDevVPN** を開いて「Connect」します。
+2. **SideStore** の「Sources」（ソース）画面で **＋** を押し、次の URL を追加します。
 
-新しいバージョンにするときも同じ手順です（上書きされ、作ったプロジェクトは残ります）。
+   ```
+   https://github.com/Bonerchin-Yoshihiko/myDAW/releases/latest/download/source.json
+   ```
+
+3. 追加した「myDAW」ソースに myDAW が出てくるので、入手ボタンを押してインストールします。ホーム画面に myDAW が出てきます。
+4. **新しいビルドが出たら**、SideStore の「My Apps」に「Update」が出るので押すだけです（作ったプロジェクトは残ります）。
+
+> ソースを使わずに入れることもできます。iPhone の Safari で
+> [myDAW-iOS.ipa（最新版）](https://github.com/Bonerchin-Yoshihiko/myDAW/releases/latest/download/myDAW-iOS.ipa)
+> をダウンロードし、SideStore の「My Apps」→ 左上の **＋** → ダウンロードした `myDAW-iOS.ipa` を選びます。
 
 *7 日ごとの更新（ここが大事）*
 
