@@ -5,7 +5,7 @@ The version numbers come from the built app's Info.plist, because SideStore chec
 that the downloaded app matches what the source says.
 
 Usage:
-  make_sidestore_source.py --app myDAW.app --ipa myDAW-iOS.ipa --repo owner/name \
+  make_sidestore_source.py --app Chanco.app --ipa Chanco-iOS.ipa --repo owner/name \
                            --tag build-42 --sha <commit> --out source.json
 """
 
@@ -49,16 +49,18 @@ def main():
     )
 
     source = {
-        "name": "myDAW",
+        "name": "Chanco",
+        # (from the bundle ID, which keeps the app's old name: changing the identifier would
+        # make SideStore treat this as a new source)
         "identifier": f"{bundle_id}.source",
-        "subtitle": "myDAW for iPhone and iPad",
+        "subtitle": "Chanco for iPhone and iPad",
         "description": description,
         "iconURL": icon_url,
         "website": repo_url,
         "tintColor": "#4FC3F7",
         "apps": [
             {
-                "name": "myDAW",
+                "name": "Chanco",
                 "bundleIdentifier": bundle_id,
                 "developerName": args.repo.split("/")[0],
                 "subtitle": "Pattern-based DAW",

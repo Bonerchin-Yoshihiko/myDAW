@@ -1,9 +1,12 @@
-# myDAW
+# Chanco
 
 パターン（小節のブロック）を作って、パズルのように並べて曲を作るデスクトップ DAW です。
 C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux と **iPhone / iPad** で動きます（[iPhone / iPad で使う](#iphone--ipad-で使う)）。
 
-![myDAW の画面](docs/screenshot.png)
+![Chanco の画面](docs/screenshot.png)
+
+> 以前は「myDAW」という名前でした。プロジェクト（`.mydaw`）やパターン（`.mdpat`）のファイル、アプリの設定、
+> ダウンロード済みの AI モデルはそのまま使えます。iPhone では上書き更新でき、作ったプロジェクトも残ります。
 
 ## できること
 
@@ -109,7 +112,7 @@ C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux と **iPhone / i
 
 ### 6. 書き出し
 - **Export WAV**（Ctrl+E）でソング全体を 24bit WAV に書き出します。
-- コマンドラインでも書き出せます: `myDAW --render song.mydaw out.wav [--samplerate 48000]`
+- コマンドラインでも書き出せます: `Chanco --render song.mydaw out.wav [--samplerate 48000]`
 
 ### ショートカット
 | キー | 動作 |
@@ -126,10 +129,10 @@ C++ / [JUCE](https://juce.com) 製で、Windows・macOS・Linux と **iPhone / i
 
 | ファイル | 対象 |
 | --- | --- |
-| `myDAW-Windows.exe` | Windows |
-| `myDAW-macOS.zip` | macOS（展開すると `myDAW.app`） |
-| `myDAW-Linux.tar.gz` | Linux |
-| `myDAW-iOS.ipa` | iPhone / iPad（[入れ方](#iphone--ipad-で使う)） |
+| `Chanco-Windows.exe` | Windows |
+| `Chanco-macOS.zip` | macOS（展開すると `Chanco.app`） |
+| `Chanco-Linux.tar.gz` | Linux |
+| `Chanco-iOS.ipa` | iPhone / iPad（[入れ方](#iphone--ipad-で使う)） |
 
 Releases はデフォルトブランチ（`claude/mydaw-initial`）に push したときに自動で作られます。ほかのブランチのビルドを
 リリースしたいときは、GitHub の **Actions** → **Build** →「Run workflow」でブランチを選んで実行します。
@@ -170,7 +173,7 @@ iPhone だけで（パソコン無しで）期限を延ばせて、ショート�
    「設定」→「プライバシーとセキュリティ」→「**デベロッパモード**」を ON にします（再起動します）。
 6. SideStore を開きます。Apple ID を聞かれたら、同じ Apple ID でサインインします。
 
-*myDAW を入れる（ここからは iPhone だけ）: SideStore に myDAW のソースを追加する*
+*Chanco を入れる（ここからは iPhone だけ）: SideStore に Chanco のソースを追加する*
 
 1. **LocalDevVPN** を開いて「Connect」します。
 2. **SideStore** の「Sources」（ソース）画面で **＋** を押し、次の URL を追加します。
@@ -179,12 +182,12 @@ iPhone だけで（パソコン無しで）期限を延ばせて、ショート�
    https://github.com/Bonerchin-Yoshihiko/myDAW/releases/latest/download/source.json
    ```
 
-3. 追加した「myDAW」ソースに myDAW が出てくるので、入手ボタンを押してインストールします。ホーム画面に myDAW が出てきます。
+3. 追加した「Chanco」ソースに Chanco が出てくるので、入手ボタンを押してインストールします。ホーム画面に Chanco が出てきます。
 4. **新しいビルドが出たら**、SideStore の「My Apps」に「Update」が出るので押すだけです（作ったプロジェクトは残ります）。
 
 > ソースを使わずに入れることもできます。iPhone の Safari で
-> [myDAW-iOS.ipa（最新版）](https://github.com/Bonerchin-Yoshihiko/myDAW/releases/latest/download/myDAW-iOS.ipa)
-> をダウンロードし、SideStore の「My Apps」→ 左上の **＋** → ダウンロードした `myDAW-iOS.ipa` を選びます。
+> [Chanco-iOS.ipa（最新版）](https://github.com/Bonerchin-Yoshihiko/myDAW/releases/latest/download/Chanco-iOS.ipa)
+> をダウンロードし、SideStore の「My Apps」→ 左上の **＋** → ダウンロードした `Chanco-iOS.ipa` を選びます。
 
 *7 日ごとの更新（ここが大事）*
 
@@ -228,15 +231,15 @@ Xcode で `MyDAW` ターゲットの「Signing & Capabilities」で自分の Tea
 ### ファイルの場所
 
 - 保存するときは名前を聞かれ、アプリの書類フォルダに保存されます。「ファイル」アプリの
-  **このiPhone内 > myDAW** から見えるので、パソコンとのやり取りもここで行えます。
-  - プロジェクト: `myDAW` 直下（`<名前>.mydaw` と `<名前> Samples` フォルダ）
+  **このiPhone内 > Chanco** から見えるので、パソコンとのやり取りもここで行えます。
+  - プロジェクト: `Chanco` 直下（`<名前>.mydaw` と `<名前> Samples` フォルダ）
   - パターン: `Patterns`、書き出した WAV: `Exports`、取り込んだ音: `Imported Audio`
 - **+ Sample** や **Open audio file...** では「ファイル」アプリの画面が開き、iCloud Drive などからも選べます。
   選んだ音はアプリの中にコピーされるので、元のファイルを消してもプロジェクトは壊れません。
   iPhone では WAV / MP3 / AIFF / FLAC / OGG に加えて **m4a（ボイスメモなど）/ AAC / CAF** も読み込めます。
 - **Export WAV** の後は共有メニューが出るので、AirDrop で送ったり「ファイル」に保存したりできます。
 - パソコンで作ったプロジェクトを使うときは、`.mydaw` と使っている音のファイルを同じフォルダ構成のまま
-  「myDAW」フォルダへコピーして、Menu →「Open...」で開きます。見つからない音はチャンネルの **...** →
+  「Chanco」フォルダへコピーして、Menu →「Open...」で開きます。見つからない音はチャンネルの **...** →
   「Replace sample...」で選び直せます。
 - アプリを切り替えたとき、保存していない変更は自動で保存されます（名前が無いプロジェクトは `Autosave`）。
   次に開いたときは最後のプロジェクトから続けられます。
@@ -264,7 +267,7 @@ cmake --build build --config Release
 
 実行ファイルは `build/MyDAW_artefacts/Release/` にできます。iPhone / iPad 用のビルドは [iPhone / iPad で使う](#iphone--ipad-で使う) を見てください。
 
-スマホの画面サイズでの見え方は、パソコン版でも `myDAW --window-size 750x369` のように窓の大きさを指定して確認できます。
+スマホの画面サイズでの見え方は、パソコン版でも `Chanco --window-size 750x369` のように窓の大きさを指定して確認できます。
 
 Linux では先に次のパッケージを入れてください:
 

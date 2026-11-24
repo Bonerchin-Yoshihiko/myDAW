@@ -52,15 +52,15 @@ jobs:
         run: |
           mkdir -p dist
           case "$RUNNER_OS" in
-            Windows) cp build/MyDAW_artefacts/Release/myDAW.exe dist/ ;;
-            macOS)   ditto -c -k --keepParent build/MyDAW_artefacts/Release/myDAW.app dist/myDAW-macOS.zip ;;
-            Linux)   cp build/MyDAW_artefacts/Release/myDAW dist/ ;;
+            Windows) cp build/MyDAW_artefacts/Release/Chanco.exe dist/ ;;
+            macOS)   ditto -c -k --keepParent build/MyDAW_artefacts/Release/Chanco.app dist/Chanco-macOS.zip ;;
+            Linux)   cp build/MyDAW_artefacts/Release/Chanco dist/ ;;
           esac
           cp README.md dist/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: myDAW-${{ matrix.name }}
+          name: Chanco-${{ matrix.name }}
           path: dist/
 
   ios:
@@ -84,22 +84,22 @@ jobs:
 
       - name: Package
         run: |
-          APP=$(find build-ios -type d -name "myDAW.app" -prune | grep -v '\.build/' | head -n 1)
+          APP=$(find build-ios -type d -name "Chanco.app" -prune | grep -v '\.build/' | head -n 1)
           echo "App bundle: $APP"
           test -n "$APP"
           plutil -p "$APP/Info.plist"
-          file "$APP/myDAW"
+          file "$APP/Chanco"
           mkdir -p dist/Payload
           cp -R "$APP" dist/Payload/
-          (cd dist && zip -qry myDAW-iOS.ipa Payload && rm -rf Payload)
-          python3 .github/scripts/make_sidestore_source.py --app "$APP" --ipa dist/myDAW-iOS.ipa \
+          (cd dist && zip -qry Chanco-iOS.ipa Payload && rm -rf Payload)
+          python3 .github/scripts/make_sidestore_source.py --app "$APP" --ipa dist/Chanco-iOS.ipa \
             --repo "${{ github.repository }}" --tag "build-${{ github.run_number }}" --sha "${{ github.sha }}" \
             --out dist/source.json
           cp README.md dist/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: myDAW-iOS
+          name: Chanco-iOS
           path: dist/
 
   # Publishes every platform's build as a GitHub release (downloadable without a GitHub
@@ -122,12 +122,12 @@ jobs:
       - name: Collect files
         run: |
           mkdir release
-          cp artifacts/myDAW-Windows/myDAW.exe release/myDAW-Windows.exe
-          cp artifacts/myDAW-macOS/myDAW-macOS.zip release/myDAW-macOS.zip
-          chmod +x artifacts/myDAW-Linux/myDAW
-          tar -czf release/myDAW-Linux.tar.gz -C artifacts/myDAW-Linux myDAW
-          cp artifacts/myDAW-iOS/myDAW-iOS.ipa release/myDAW-iOS.ipa
-          cp artifacts/myDAW-iOS/source.json release/source.json
+          cp artifacts/Chanco-Windows/Chanco.exe release/Chanco-Windows.exe
+          cp artifacts/Chanco-macOS/Chanco-macOS.zip release/Chanco-macOS.zip
+          chmod +x artifacts/Chanco-Linux/Chanco
+          tar -czf release/Chanco-Linux.tar.gz -C artifacts/Chanco-Linux Chanco
+          cp artifacts/Chanco-iOS/Chanco-iOS.ipa release/Chanco-iOS.ipa
+          cp artifacts/Chanco-iOS/source.json release/source.json
           ls -la release
 
       - name: Publish
@@ -142,10 +142,10 @@ jobs:
 
           | ファイル | 対象 |
           | --- | --- |
-          | myDAW-Windows.exe | Windows |
-          | myDAW-macOS.zip | macOS（展開して myDAW.app） |
-          | myDAW-Linux.tar.gz | Linux |
-          | myDAW-iOS.ipa | iPhone / iPad（SideStore などで署名して入れる） |
+          | Chanco-Windows.exe | Windows |
+          | Chanco-macOS.zip | macOS（展開して Chanco.app） |
+          | Chanco-Linux.tar.gz | Linux |
+          | Chanco-iOS.ipa | iPhone / iPad（SideStore などで署名して入れる） |
 
           **SideStore のソース**（追加すると新しいビルドが出たときに SideStore から更新できます）:
           ${SOURCE_URL}
@@ -156,6 +156,6 @@ jobs:
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" release/* --clobber
           else
-            gh release create "$TAG" release/* --target "$GITHUB_SHA" --title "myDAW build ${GITHUB_RUN_NUMBER}" \
+            gh release create "$TAG" release/* --target "$GITHUB_SHA" --title "Chanco build ${GITHUB_RUN_NUMBER}" \
               --notes-file notes.md --latest
           fi

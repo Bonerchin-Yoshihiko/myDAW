@@ -301,16 +301,26 @@ String Stems::getModelUrl (ModelType type)
 
 File Stems::getModelsFolder()
 {
-    auto folder = File::getSpecialLocation (File::userApplicationDataDirectory).getChildFile ("myDAW").getChildFile ("Models");
+    auto base = File::getSpecialLocation (File::userApplicationDataDirectory);
 
    #if JUCE_WINDOWS
     // demucs.cpp opens the model with fopen(), which cannot open non-ASCII paths on Windows
     // (e.g. a Japanese user name). C:\ProgramData is always ASCII.
-    if (! isAscii (folder.getFullPathName()))
-        folder = File::getSpecialLocation (File::commonApplicationDataDirectory).getChildFile ("myDAW").getChildFile ("Models");
+    if (! isAscii (base.getChildFile ("Chanco").getChildFile ("Models").getFullPathName()))
+        base = File::getSpecialLocation (File::commonApplicationDataDirectory);
    #else
     ignoreUnused (isAscii);
    #endif
+
+    const auto folder = base.getChildFile ("Chanco").getChildFile ("Models");
+
+    // The app was called "myDAW" before: move models downloaded back then instead of
+    // downloading them again (or keep using them where they are if they cannot be moved).
+    const auto oldFolder = base.getChildFile ("myDAW").getChildFile ("Models");
+
+    if (! folder.isDirectory() && oldFolder.isDirectory()
+         && ! (folder.getParentDirectory().createDirectory() && oldFolder.moveFileTo (folder)))
+        return oldFolder;
 
     return folder;
 }

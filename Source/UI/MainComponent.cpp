@@ -23,7 +23,7 @@ MainComponent::MainComponent (AppCore& c)
     transport.onAudioSettings = [this] (Component&) { showAudioSettings(); };
     transport.onExportWav = [this] { exportWav(); };
 
-    auto errorHandler = [] (const String& message) { showMessage ("myDAW", message); };
+    auto errorHandler = [] (const String& message) { showMessage ("Chanco", message); };
     patternList.onError = errorHandler;
     patternEditor.onError = errorHandler;
 
@@ -141,7 +141,7 @@ void MainComponent::sessionChanged (int changes)
 
 String MainComponent::getWindowTitle() const
 {
-    return session.getProjectName() + (session.isDirty() ? " *" : "") + " - myDAW";
+    return session.getProjectName() + (session.isDirty() ? " *" : "") + " - Chanco";
 }
 
 void MainComponent::showMessage (const String& title, const String& message, bool warning)

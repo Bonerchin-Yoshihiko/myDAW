@@ -8,7 +8,7 @@ class MainWindow : public AppWindow
 {
 public:
     explicit MainWindow (AppCore& c)
-        : AppWindow ("myDAW", Touch::isMobile() ? 0 : DocumentWindow::allButtons), core (c)
+        : AppWindow ("Chanco", Touch::isMobile() ? 0 : DocumentWindow::allButtons), core (c)
     {
         content = new MainComponent (core);
         setContentOwned (content, ! Touch::isMobile());
@@ -64,7 +64,7 @@ public:
         LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
         const auto args = getCommandLineParameterArray();
 
-        // Command-line rendering:  myDAW --render song.mydaw out.wav [--samplerate 48000]
+        // Command-line rendering:  Chanco --render song.mydaw out.wav [--samplerate 48000]
         if (const auto index = args.indexOf ("--render"); index >= 0)
         {
             renderFromCommandLine (args, index);
@@ -164,7 +164,7 @@ private:
         };
 
         if (index + 2 >= args.size())
-            return fail ("Usage: myDAW --render <project.mydaw> <output.wav> [--samplerate 48000]");
+            return fail ("Usage: Chanco --render <project.mydaw> <output.wav> [--samplerate 48000]");
 
         const auto cwd = File::getCurrentWorkingDirectory();
         const auto projectFile = cwd.getChildFile (args[index + 1]);

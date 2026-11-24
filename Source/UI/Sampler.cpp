@@ -1010,7 +1010,7 @@ void SamplerComponent::loadModelFromFile()
     request.initialFolder = File::getSpecialLocation (File::userHomeDirectory).getChildFile ("Downloads");
     request.wildcard = "*.bin";
     request.appFileType = true;
-    request.copyInto = File::getSpecialLocation (File::tempDirectory).getChildFile ("myDAW model");
+    request.copyInto = File::getSpecialLocation (File::tempDirectory).getChildFile ("Chanco model");
 
     AppFiles::chooseFilesToOpen (chooser, request, [safe = SafePointer<SamplerComponent> (this), temp = request.copyInto] (const Array<File>& files)
     {

@@ -124,8 +124,10 @@ set(MYDAW_JUCE_MODULES
 set(MYDAW_BUILD_NUMBER "${PROJECT_VERSION}" CACHE STRING "Build number (CFBundleVersion on Apple platforms)")
 
 juce_add_gui_app(MyDAW
-    PRODUCT_NAME "myDAW"
-    COMPANY_NAME "myDAW"
+    PRODUCT_NAME "Chanco"
+    COMPANY_NAME "Chanco"
+    # (kept from the app's old name "myDAW": a new ID would install a second app on the
+    # iPhone, without the projects saved so far, and SideStore would not update it)
     BUNDLE_ID "com.mydaw.app"
     VERSION ${PROJECT_VERSION}
     BUILD_VERSION ${MYDAW_BUILD_NUMBER}
@@ -134,7 +136,7 @@ juce_add_gui_app(MyDAW
     MICROPHONE_PERMISSION_ENABLED FALSE
     # iOS: landscape on iPhone (the editors need the width), any orientation on iPad;
     # projects, samples and exports live in the app's Documents folder, which the
-    # Files app shows under "On My iPhone > myDAW".
+    # Files app shows under "On My iPhone > Chanco".
     IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
     IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
                              UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
@@ -166,7 +168,7 @@ target_link_libraries(MyDAW
 # ---------------------------------------------------------------------------
 # Integration tests (engine, sampler, plug-in hosting, file formats)
 # ---------------------------------------------------------------------------
-option(MYDAW_BUILD_TESTS "Build the myDAW integration tests" OFF)
+option(MYDAW_BUILD_TESTS "Build the Chanco integration tests" OFF)
 
 if(MYDAW_BUILD_TESTS AND MYDAW_IOS)
     message(STATUS "The integration tests are a command-line app and are not built for iOS")

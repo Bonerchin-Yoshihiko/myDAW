@@ -80,7 +80,7 @@ void TransportBar::paint (Graphics& g)
     {
         g.setColour (Theme::accent);
         g.setFont (Theme::font (19.0f, true));
-        g.drawText ("myDAW", 12, 0, 80, getHeight(), Justification::centredLeft);
+        g.drawText ("Chanco", 12, 0, 80, getHeight(), Justification::centredLeft);
     }
 }
 

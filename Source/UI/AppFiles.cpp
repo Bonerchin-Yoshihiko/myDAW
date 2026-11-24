@@ -88,7 +88,7 @@ String AppFiles::describeLocation (const File& f)
                                                                                             false, false);
     if (relative.isNotEmpty())
         return "Files app > On My " + String (SystemStats::getDeviceDescription().containsIgnoreCase ("iPad") ? "iPad" : "iPhone")
-               + " > myDAW > " + relative.replace ("/", " > ");
+               + " > Chanco > " + relative.replace ("/", " > ");
    #endif
 
     return f.getFullPathName();
@@ -158,8 +158,8 @@ void AppFiles::chooseFileToSave (std::unique_ptr<FileChooser>& holder, const Sav
 
     askForText (request.title,
                 "Saved on this " + String (SystemStats::getDeviceDescription().containsIgnoreCase ("iPad") ? "iPad" : "iPhone")
-                    + " in the myDAW folder (Files app > On My "
-                    + (SystemStats::getDeviceDescription().containsIgnoreCase ("iPad") ? "iPad" : "iPhone") + " > myDAW).",
+                    + " in the Chanco folder (Files app > On My "
+                    + (SystemStats::getDeviceDescription().containsIgnoreCase ("iPad") ? "iPad" : "iPhone") + " > Chanco).",
                 request.suggestedFile.getFileNameWithoutExtension(), "Save", request.parent,
                 [folder, extension, done] (const String& name)
     {

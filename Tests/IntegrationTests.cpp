@@ -1,4 +1,4 @@
-/*  Integration tests for the myDAW engine.
+/*  Integration tests for the Chanco engine.
 
     Usage:  myDAWTests [path/to/InstrumentPlugin.vst3 path/to/EffectPlugin.vst3]
 

@@ -7,7 +7,7 @@
     Desktop: the native file dialogs.
 
     iPhone / iPad: apps can only keep files in their own container. The app's "Documents"
-    folder is shown in the Files app as "On My iPhone > myDAW", so that is where projects,
+    folder is shown in the Files app as "On My iPhone > Chanco", so that is where projects,
     patterns and exports are saved (the app asks for a name instead of showing a save dialog).
     Files picked from other places (iCloud Drive, other apps ...) can only be read for a moment,
     so they are copied into Documents first; projects then keep working. */

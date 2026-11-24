@@ -12,10 +12,11 @@ public:
     AppCore()
     {
         PropertiesFile::Options options;
-        options.applicationName = "myDAW";
+        options.applicationName = "Chanco";
         options.filenameSuffix = ".settings";
-        options.folderName = "myDAW";
+        options.folderName = "Chanco";
         options.osxLibrarySubFolder = "Application Support";
+        takeOverOldSettings (options);
         properties.setStorageParameters (options);
 
         plugins = std::make_unique<PluginManager> (*properties.getUserSettings());
@@ -63,6 +64,21 @@ public:
             properties.getUserSettings()->setValue ("audioDevice", xml.get());
 
         properties.saveIfNeeded();
+    }
+
+    /** The app was called "myDAW" before: start from its settings (audio device, recent
+        projects, scanned plug-ins) the first time. */
+    static void takeOverOldSettings (const PropertiesFile::Options& options)
+    {
+        auto oldOptions = options;
+        oldOptions.applicationName = "myDAW";
+        oldOptions.folderName = "myDAW";
+
+        const auto file = options.getDefaultFile();
+        const auto oldFile = oldOptions.getDefaultFile();
+
+        if (! file.existsAsFile() && oldFile.existsAsFile() && file.getParentDirectory().createDirectory())
+            oldFile.copyFileTo (file);
     }
 
     ApplicationProperties properties;
