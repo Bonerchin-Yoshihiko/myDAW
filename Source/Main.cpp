@@ -7,7 +7,7 @@ class MainWindow : public DocumentWindow
 {
 public:
     explicit MainWindow (AppCore& c)
-        : DocumentWindow ("myDAW", Theme::background, DocumentWindow::allButtons), core (c)
+        : DocumentWindow ("Chanco", Theme::background, DocumentWindow::allButtons), core (c)
     {
         setUsingNativeTitleBar (true);
         content = new MainComponent (core);
@@ -42,7 +42,7 @@ public:
 };
 
 //==============================================================================
-class MyDAWApplication : public JUCEApplication
+class ChancoApplication : public JUCEApplication
 {
 public:
     const String getApplicationName() override    { return JUCE_APPLICATION_NAME_STRING; }
@@ -54,7 +54,7 @@ public:
         LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
         const auto args = getCommandLineParameterArray();
 
-        // Command-line rendering:  myDAW --render song.mydaw out.wav [--samplerate 48000]
+        // Command-line rendering:  Chanco --render song.chanco out.wav [--samplerate 48000]
         if (const auto index = args.indexOf ("--render"); index >= 0)
         {
             renderFromCommandLine (args, index);
@@ -67,7 +67,8 @@ public:
 
         for (auto& a : args)
         {
-            if (File::isAbsolutePath (a) && File (a).hasFileExtension (Session::projectExtension) && File (a).existsAsFile())
+            if (File::isAbsolutePath (a) && File (a).existsAsFile()
+                 && (File (a).hasFileExtension (Session::projectExtension) || File (a).hasFileExtension (Session::legacyProjectExtension)))
             {
                 mainWindow->content->openFile (File (a));
                 break;
@@ -125,7 +126,7 @@ private:
         };
 
         if (index + 2 >= args.size())
-            return fail ("Usage: myDAW --render <project.mydaw> <output.wav> [--samplerate 48000]");
+            return fail ("Usage: Chanco --render <project.chanco> <output.wav> [--samplerate 48000]");
 
         const auto cwd = File::getCurrentWorkingDirectory();
         const auto projectFile = cwd.getChildFile (args[index + 1]);
@@ -160,4 +161,4 @@ private:
     std::unique_ptr<MainWindow> mainWindow;
 };
 
-START_JUCE_APPLICATION (MyDAWApplication)
+START_JUCE_APPLICATION (ChancoApplication)

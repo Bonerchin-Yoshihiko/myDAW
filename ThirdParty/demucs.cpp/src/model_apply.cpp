@@ -111,7 +111,7 @@ shift_inference(const struct demucscpp::demucs_model &model,
 
     symmetric_zero_padding(padded_mix, full_audio, 2 * max_shift);
 
-    // myDAW: fixed instead of rand() % max_shift (rand() is not thread-safe and made results
+    // Chanco: fixed instead of rand() % max_shift (rand() is not thread-safe and made results
     // non-reproducible; with a single shift any offset is statistically equivalent)
     int offset = max_shift / 2;
     // int offset = 1337;

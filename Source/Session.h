@@ -111,8 +111,13 @@ public:
     void notify (int changes);
     void markDirty();
 
-    static constexpr const char* projectExtension = ".mydaw";
-    static constexpr const char* patternExtension = ".mdpat";
+    static constexpr const char* projectExtension = ".chanco";
+    static constexpr const char* patternExtension = ".chpat";
+    // files from before the app was renamed (myDAW) can still be opened
+    static constexpr const char* legacyProjectExtension = ".mydaw";
+    static constexpr const char* legacyPatternExtension = ".mdpat";
+    static String getProjectWildcard()  { return "*.chanco;*.mydaw"; }
+    static String getPatternWildcard()  { return "*.chpat;*.mdpat"; }
 
 private:
     std::shared_ptr<Sequence> buildSequence (PlayMode, bool forExport) const;

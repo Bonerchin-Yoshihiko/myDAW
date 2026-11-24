@@ -645,7 +645,7 @@ struct demucs_segment_buffers
           savedt_2(1, 192, TIME_BRANCH_LEN_2),
           savedt_3(1, 384, TIME_BRANCH_LEN_3)
     {
-        // myDAW: Eigen does not initialise memory. Parts of these buffers are read before
+        // Chanco: Eigen does not initialise memory. Parts of these buffers are read before
         // being written when the audio is shorter than a segment, which produced NaN/garbage
         // in long-running processes whose heap is not fresh.
         mix.setZero(); targets_out.setZero(); padded_mix.setZero(); z.setZero();

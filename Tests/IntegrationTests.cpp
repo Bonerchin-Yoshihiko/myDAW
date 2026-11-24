@@ -1,6 +1,6 @@
-/*  Integration tests for the myDAW engine.
+/*  Integration tests for the Chanco engine.
 
-    Usage:  myDAWTests [path/to/InstrumentPlugin.vst3 path/to/EffectPlugin.vst3]
+    Usage:  ChancoTests [path/to/InstrumentPlugin.vst3 path/to/EffectPlugin.vst3]
 
     Without arguments the plug-in hosting tests are skipped. The effect plug-in is
     expected to have a gain-like first parameter (e.g. JUCE's GainPluginDemo).
@@ -219,8 +219,8 @@ namespace
     void testFiles (const File& dir)
     {
         std::cout << "Project and pattern files" << std::endl;
-        const auto projectFile = dir.getChildFile ("roundtrip.mydaw");
-        const auto patternFile = dir.getChildFile ("groove.mdpat");
+        const auto projectFile = dir.getChildFile ("roundtrip.chanco");
+        const auto patternFile = dir.getChildFile ("groove.chpat");
         float firstRms = 0.0f;
         int channelId = 0;
 
@@ -263,6 +263,15 @@ namespace
 
             s.exportWav (dir.getChildFile ("after.wav"));
             check (approx (readWav (dir.getChildFile ("after.wav")).rms (0.0, 10.0), firstRms, 1.0e-4), "reloaded project renders identically");
+
+            // projects and patterns saved before the app was renamed (myDAW) still open
+            check (projectFile.loadFileAsString().contains ("\"format\": \"Chanco\""), "projects are saved in the Chanco format");
+            const auto legacyProject = dir.getChildFile ("old-song.mydaw");
+            legacyProject.replaceWithText (projectFile.loadFileAsString().replace ("\"format\": \"Chanco\"", "\"format\": \"myDAW\""));
+            check (s.loadProject (legacyProject, warnings).wasOk() && s.getProject().patterns.size() == 1, "old myDAW (.mydaw) projects still open");
+            const auto legacyPattern = dir.getChildFile ("old-groove.mdpat");
+            legacyPattern.replaceWithText (patternFile.loadFileAsString().replace ("\"Chanco-pattern\"", "\"myDAW-pattern\""));
+            check (s.importPattern (legacyPattern, warnings).wasOk(), "old myDAW (.mdpat) patterns still load");
 
             // import the saved pattern into a fresh project: the channel is created automatically
             s.newProject();
@@ -351,7 +360,7 @@ namespace
                "processed audio lands in the right place");
 
         // committing edits through the session
-        const auto projectFile = dir.getChildFile ("edits.mydaw");
+        const auto projectFile = dir.getChildFile ("edits.chanco");
         const auto sourceFile = writeSine (dir.getChildFile ("edit-source.wav"), 440.0, 1.0, 44100.0, 1);
         int originalLength = 0;
 
@@ -469,7 +478,7 @@ namespace
                "extracted slice has the right length and a click-free start");
 
         // several samples from one file become channels and are saved with the project
-        const auto projectFile = dir.getChildFile ("slices.mydaw");
+        const auto projectFile = dir.getChildFile ("slices.chanco");
 
         {
             TestEnvironment env (dir);
@@ -657,7 +666,7 @@ namespace
     void testPluginHosting (const File& dir, const File& synthFile, const File& effectFile)
     {
         std::cout << "VST3 plug-in hosting" << std::endl;
-        const auto projectFile = dir.getChildFile ("plugins.mydaw");
+        const auto projectFile = dir.getChildFile ("plugins.chanco");
 
         {
             TestEnvironment env (dir);
@@ -743,7 +752,7 @@ int main (int argc, char* argv[])
 {
     ScopedJuceInitialiser_GUI juce;
 
-    auto dir = File::getSpecialLocation (File::tempDirectory).getChildFile ("myDAWTests");
+    auto dir = File::getSpecialLocation (File::tempDirectory).getChildFile ("ChancoTests");
     dir.deleteRecursively();
     dir.createDirectory();
 
@@ -760,13 +769,13 @@ int main (int argc, char* argv[])
         check (ok, "parts are split, placed and cross-faded exactly (" + details.trim() + ")");
     }
 
-    // AI stem separation needs a model file: MYDAW_TEST_DEMUCS_MODEL=/path/to/ggml-model-htdemucs-6s-f16.bin
-    const auto modelPath = SystemStats::getEnvironmentVariable ("MYDAW_TEST_DEMUCS_MODEL", {});
+    // AI stem separation needs a model file: CHANCO_TEST_DEMUCS_MODEL=/path/to/ggml-model-htdemucs-6s-f16.bin
+    const auto modelPath = SystemStats::getEnvironmentVariable ("CHANCO_TEST_DEMUCS_MODEL", {});
 
     if (File::isAbsolutePath (modelPath) && File (modelPath).existsAsFile())
         testStemSeparation (dir, File (modelPath));
     else
-        std::cout << "(AI stem separation tests skipped: set MYDAW_TEST_DEMUCS_MODEL to a model file)" << std::endl;
+        std::cout << "(AI stem separation tests skipped: set CHANCO_TEST_DEMUCS_MODEL to a model file)" << std::endl;
 
     if (argc >= 3)
     {

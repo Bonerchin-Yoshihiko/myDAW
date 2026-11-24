@@ -56,7 +56,7 @@ struct stft_buffers
               nb_frames, std::vector<std::complex<float>>(nb_bins))),
           spec(Eigen::Tensor3dXcf(2, nb_bins, nb_frames))
     {
-        // myDAW: see demucs_segment_buffers
+        // Chanco: see demucs_segment_buffers
         waveform.setZero();
         spec.setZero();
     }

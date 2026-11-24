@@ -21,7 +21,7 @@ namespace Stems
     const ModelInfo& getModelInfo (ModelType);
     String getStemDisplayName (const String& stemId);  // "vocals" -> "Vocals"
     String getModelsPageUrl();
-    String getModelUrl (ModelType);   // download location (honours MYDAW_MODEL_BASE_URL)
+    String getModelUrl (ModelType);   // download location (honours CHANCO_MODEL_BASE_URL)
 
     /** Where downloaded models are kept (an ASCII-only path on Windows, see .cpp). */
     File getModelsFolder();

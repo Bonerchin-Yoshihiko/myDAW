@@ -285,8 +285,8 @@ String Stems::getModelsPageUrl()
 
 String Stems::getModelUrl (ModelType type)
 {
-    // MYDAW_MODEL_BASE_URL can point at a mirror (e.g. where Hugging Face is not reachable)
-    auto base = SystemStats::getEnvironmentVariable ("MYDAW_MODEL_BASE_URL", {});
+    // CHANCO_MODEL_BASE_URL can point at a mirror (e.g. where Hugging Face is not reachable)
+    auto base = SystemStats::getEnvironmentVariable ("CHANCO_MODEL_BASE_URL", {});
 
     if (base.isEmpty())
         return getModelInfo (type).url;
@@ -294,25 +294,44 @@ String Stems::getModelUrl (ModelType type)
     return base.trimCharactersAtEnd ("/") + "/" + getModelInfo (type).fileName;
 }
 
+namespace
+{
+    File modelsFolderFor (const String& appName)
+    {
+        auto folder = File::getSpecialLocation (File::userApplicationDataDirectory).getChildFile (appName).getChildFile ("Models");
+
+       #if JUCE_WINDOWS
+        // demucs.cpp opens the model with fopen(), which cannot open non-ASCII paths on Windows
+        // (e.g. a Japanese user name). C:\ProgramData is always ASCII.
+        if (! isAscii (folder.getFullPathName()))
+            folder = File::getSpecialLocation (File::commonApplicationDataDirectory).getChildFile (appName).getChildFile ("Models");
+       #else
+        ignoreUnused (isAscii);
+       #endif
+
+        return folder;
+    }
+}
+
 File Stems::getModelsFolder()
 {
-    auto folder = File::getSpecialLocation (File::userApplicationDataDirectory).getChildFile ("myDAW").getChildFile ("Models");
-
-   #if JUCE_WINDOWS
-    // demucs.cpp opens the model with fopen(), which cannot open non-ASCII paths on Windows
-    // (e.g. a Japanese user name). C:\ProgramData is always ASCII.
-    if (! isAscii (folder.getFullPathName()))
-        folder = File::getSpecialLocation (File::commonApplicationDataDirectory).getChildFile ("myDAW").getChildFile ("Models");
-   #else
-    ignoreUnused (isAscii);
-   #endif
-
-    return folder;
+    return modelsFolderFor ("Chanco");
 }
 
 File Stems::getModelFile (ModelType type)
 {
-    return getModelsFolder().getChildFile (getModelInfo (type).fileName);
+    const auto file = getModelsFolder().getChildFile (getModelInfo (type).fileName);
+
+    // a model downloaded before the app was renamed (myDAW) is used where it is
+    if (! file.existsAsFile())
+    {
+        const auto legacy = modelsFolderFor ("myDAW").getChildFile (getModelInfo (type).fileName);
+
+        if (isValidModelFile (legacy))
+            return legacy;
+    }
+
+    return file;
 }
 
 bool Stems::isModelInstalled (ModelType type)
@@ -345,7 +364,7 @@ Result Stems::installModelFile (const File& source, ModelType* typeOut)
     if (! isValidModelFile (source, &type))
         return Result::fail (source.getFileName() + " is not a Demucs v4 model file (ggml-model-htdemucs-...-f16.bin).");
 
-    const auto target = getModelFile (type);
+    const auto target = getModelsFolder().getChildFile (getModelInfo (type).fileName);
 
     if (source != target)
     {

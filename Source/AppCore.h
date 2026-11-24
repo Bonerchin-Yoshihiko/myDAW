@@ -12,10 +12,24 @@ public:
     AppCore()
     {
         PropertiesFile::Options options;
-        options.applicationName = "myDAW";
+        options.applicationName = "Chanco";
         options.filenameSuffix = ".settings";
-        options.folderName = "myDAW";
+        options.folderName = "Chanco";
         options.osxLibrarySubFolder = "Application Support";
+
+        // The app used to be called "myDAW": carry its settings over (scanned plug-ins, audio
+        // device, window position, recent projects) the first time Chanco starts.
+        {
+            auto legacy = options;
+            legacy.applicationName = "myDAW";
+            legacy.folderName = "myDAW";
+            const auto newFile = options.getDefaultFile();
+            const auto oldFile = legacy.getDefaultFile();
+
+            if (! newFile.existsAsFile() && oldFile.existsAsFile() && newFile.getParentDirectory().createDirectory())
+                oldFile.copyFileTo (newFile);
+        }
+
         properties.setStorageParameters (options);
 
         plugins = std::make_unique<PluginManager> (*properties.getUserSettings());

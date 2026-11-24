@@ -393,7 +393,7 @@ Result Session::saveProject (const File& file)
     var root (o);
     const auto baseDir = file.getParentDirectory();
 
-    o->setProperty ("format", "myDAW");
+    o->setProperty ("format", "Chanco");
     o->setProperty ("version", 1);
     o->setProperty ("bpm", project.bpm);
     o->setProperty ("songBeatsPerBar", project.songBeatsPerBar);
@@ -448,8 +448,10 @@ Result Session::loadProject (const File& file, StringArray& warnings)
 {
     const auto root = JSON::parse (file.loadFileAsString());
 
-    if (! root.isObject() || root.getProperty ("format", "").toString() != "myDAW")
-        return Result::fail (file.getFileName() + " is not a myDAW project file.");
+    const auto format = root.getProperty ("format", "").toString();
+
+    if (! root.isObject() || (format != "Chanco" && format != "myDAW"))   // "myDAW": before the rename
+        return Result::fail (file.getFileName() + " is not a Chanco project file.");
 
     const auto baseDir = file.getParentDirectory();
     Project p;
@@ -763,7 +765,7 @@ File Session::getEditedSamplesFolder() const
     if (projectFile != File())
         return projectFile.getParentDirectory().getChildFile (projectFile.getFileNameWithoutExtension() + " Samples");
 
-    return File::getSpecialLocation (File::userDocumentsDirectory).getChildFile ("myDAW").getChildFile ("Edited Samples");
+    return File::getSpecialLocation (File::userDocumentsDirectory).getChildFile ("Chanco").getChildFile ("Edited Samples");
 }
 
 Result Session::writeEditedSamples (const File& folder)
@@ -996,7 +998,7 @@ Result Session::exportPattern (int patternId, const File& file)
 
     auto* o = new DynamicObject();
     var root (o);
-    o->setProperty ("format", "myDAW-pattern");
+    o->setProperty ("format", "Chanco-pattern");
     o->setProperty ("version", 1);
     o->setProperty ("pattern", p->toVar());
 
@@ -1022,8 +1024,10 @@ Result Session::importPattern (const File& file, StringArray& warnings)
 {
     const auto root = JSON::parse (file.loadFileAsString());
 
-    if (! root.isObject() || root.getProperty ("format", "").toString() != "myDAW-pattern")
-        return Result::fail (file.getFileName() + " is not a myDAW pattern file.");
+    const auto format = root.getProperty ("format", "").toString();
+
+    if (! root.isObject() || (format != "Chanco-pattern" && format != "myDAW-pattern"))
+        return Result::fail (file.getFileName() + " is not a Chanco pattern file.");
 
     std::map<int, int> channelMap;
     bool addedChannels = false;

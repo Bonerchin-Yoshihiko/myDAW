@@ -272,7 +272,7 @@ void PatternList::loadPattern()
     auto& settings = session.getPluginManager().getSettings();
     File dir (settings.getValue ("patternDir", File::getSpecialLocation (File::userDocumentsDirectory).getFullPathName()));
 
-    chooser = std::make_unique<FileChooser> ("Load pattern", dir, String ("*") + Session::patternExtension);
+    chooser = std::make_unique<FileChooser> ("Load pattern", dir, Session::getPatternWildcard());
     chooser->launchAsync (FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles
                               | FileBrowserComponent::canSelectMultipleItems,
                           [this] (const FileChooser& fc)

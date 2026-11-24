@@ -14,4 +14,4 @@ by Sevag H, MIT licensed (see `LICENSE`).
 - Model weights (not included): https://huggingface.co/datasets/Retrobear/demucs.cpp
   (converted from Meta's Demucs, MIT licensed)
 
-myDAW downloads the model on first use, or loads a model file you pick.
+Chanco downloads the model on first use, or loads a model file you pick.
